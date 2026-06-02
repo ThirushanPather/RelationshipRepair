@@ -68,6 +68,59 @@
   border: 1px solid rgba(138, 171, 122, 0.3);
 }
 
+/* ─── Scrollbar hide ─────────────────────────────────────────────────────── */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+/* ─── Rating slider (conversations page) ─────────────────────────────────── */
+.rating-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+  width: 100%;
+}
+
+.rating-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #c9a96e;
+  border: 2px solid rgba(201, 169, 110, 0.35);
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rating-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+  box-shadow: 0 3px 16px rgba(201, 169, 110, 0.45);
+}
+
+.rating-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #c9a96e;
+  border: 2px solid rgba(201, 169, 110, 0.35);
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rating-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 4px;
+  background: transparent;
+}
+
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 html {
   color-scheme: dark;
