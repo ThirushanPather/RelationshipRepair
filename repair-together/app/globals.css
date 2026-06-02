@@ -1,0 +1,98 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ─── Design tokens ──────────────────────────────────────────────────────── */
+@theme {
+  /* Matcha palette */
+  --color-background: #1a1f1a;
+  --color-foreground: #e8ebe4;
+  --color-surface:    #222722;
+  --color-surface2:   #2a302a;
+  --color-border:     #3a4238;
+  --color-accent:     #8aab7a;
+  --color-gold:       #c9a96e;
+
+  /* shadcn semantic tokens */
+  --color-card:                  #222722;
+  --color-card-foreground:       #e8ebe4;
+  --color-primary:               #8aab7a;
+  --color-primary-foreground:    #1a1f1a;
+  --color-secondary:             #2a302a;
+  --color-secondary-foreground:  #e8ebe4;
+  --color-muted:                 #2a302a;
+  --color-muted-foreground:      #7a8c75;
+  --color-accent-foreground:     #e8ebe4;
+  --color-destructive:           #e05252;
+  --color-destructive-foreground: #ffffff;
+  --color-input:                 #3a4238;
+  --color-ring:                  #8aab7a;
+
+  /* Typography */
+  --font-heading: var(--font-cormorant);
+  --font-sans:    var(--font-dm-sans);
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+/* ─── Glassmorphism utilities ────────────────────────────────────────────── */
+@utility glass-card {
+  background: rgba(34, 39, 34, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(138, 171, 122, 0.15);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(138, 171, 122, 0.05);
+}
+
+@utility glass-nav {
+  background: rgba(26, 31, 26, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+@utility glass-input {
+  background: rgba(42, 48, 42, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(138, 171, 122, 0.2);
+  outline: none;
+}
+
+@utility glass-button {
+  background: rgba(138, 171, 122, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(138, 171, 122, 0.3);
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+html {
+  color-scheme: dark;
+}
+
+/* Fixed gradient mesh — glass elements blur against this */
+html::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: #1a1f1a;
+  background-image:
+    radial-gradient(ellipse 80% 70% at 5% 0%,   rgba(138, 171, 122, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 60% at 95% 100%, rgba(42, 65, 42, 0.45)   0%, transparent 55%),
+    radial-gradient(ellipse 40% 40% at 65% 35%,  rgba(34, 50, 34, 0.25)   0%, transparent 65%);
+  pointer-events: none;
+}
+
+body {
+  color: var(--color-foreground);
+  font-family: var(--font-sans, 'DM Sans', sans-serif);
+  min-height: 100dvh;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}

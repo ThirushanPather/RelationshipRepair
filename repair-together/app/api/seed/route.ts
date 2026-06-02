@@ -1,0 +1,16 @@
+export const dynamic = "force-dynamic"
+
+import { NextResponse } from "next/server"
+import { seedData } from "@/lib/data"
+
+export async function POST() {
+  try {
+    const result = await seedData()
+    return NextResponse.json(result)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    )
+  }
+}
