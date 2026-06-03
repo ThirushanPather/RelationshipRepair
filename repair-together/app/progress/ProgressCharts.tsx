@@ -31,14 +31,23 @@ export type ThemeBarPoint = {
 // ─── Tooltip components ────────────────────────────────────────────────────────
 
 const tooltipBoxStyle: React.CSSProperties = {
-  background: "rgba(26,31,26,0.97)",
+  background: "var(--color-background)",
   backdropFilter: "blur(20px)",
   WebkitBackdropFilter: "blur(20px)",
-  border: "1px solid rgba(138,171,122,0.18)",
+  border: "1px solid color-mix(in srgb, var(--color-accent) 18%, transparent)",
   borderRadius: "0.75rem",
   padding: "0.75rem 1rem",
   fontSize: "0.8125rem",
   boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const c = hex.replace('#', '')
+  const r = parseInt(c.slice(0, 2), 16)
+  const g = parseInt(c.slice(2, 4), 16)
+  const b = parseInt(c.slice(4, 6), 16)
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return `rgba(138,171,122,${alpha})`
+  return `rgba(${r},${g},${b},${alpha})`
 }
 
 function LineTooltip({ active, payload, label }: {
@@ -49,7 +58,7 @@ function LineTooltip({ active, payload, label }: {
   if (!active || !payload?.length) return null
   return (
     <div style={tooltipBoxStyle}>
-      <p style={{ color: "#7a8c75", marginBottom: "0.5rem", fontSize: "0.75rem" }}>{label}</p>
+      <p style={{ color: "var(--color-muted-foreground)", marginBottom: "0.5rem", fontSize: "0.75rem" }}>{label}</p>
       {payload.map(entry => (
         <div key={entry.name} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.2rem" }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: entry.color, display: "block", flexShrink: 0 }} />
@@ -72,19 +81,12 @@ function BarTooltip({ active, payload }: {
   return (
     <div style={tooltipBoxStyle}>
       <p style={{ color: "#e8ebe4", marginBottom: "0.25rem" }}>{item.payload.fullName}</p>
-      <p style={{ color: "#8aab7a", fontWeight: 600 }}>
+      <p style={{ color: "var(--color-accent)", fontWeight: 600 }}>
         Avg: {item.value > 0 ? item.value.toFixed(1) : "No ratings yet"}
       </p>
     </div>
   )
 }
-
-// ─── Shared chart colours ──────────────────────────────────────────────────────
-
-const HIM_COLOR = "#8aab7a"
-const HER_COLOR = "#c9a96e"
-const AXIS_COLOR = "#7a8c75"
-const GRID_COLOR = "rgba(138,171,122,0.07)"
 
 // ─── Line chart ────────────────────────────────────────────────────────────────
 
@@ -92,10 +94,18 @@ function ScoreLineChart({
   data,
   nameHim,
   nameHer,
+  himColor,
+  herColor,
+  mutedColor,
+  gridColor,
 }: {
   data: TimelinePoint[]
   nameHim: string
   nameHer: string
+  himColor: string
+  herColor: string
+  mutedColor: string
+  gridColor: string
 }) {
   if (data.length === 0) {
     return (
@@ -111,10 +121,10 @@ function ScoreLineChart({
   return (
     <ResponsiveContainer width="100%" height={260}>
       <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke={GRID_COLOR} />
+        <CartesianGrid vertical={false} stroke={gridColor} />
         <XAxis
           dataKey="date"
-          tick={{ fill: AXIS_COLOR, fontSize: 11 }}
+          tick={{ fill: mutedColor, fontSize: 11 }}
           axisLine={false}
           tickLine={false}
           interval="preserveStartEnd"
@@ -122,7 +132,7 @@ function ScoreLineChart({
         <YAxis
           domain={[1, 10]}
           ticks={[1, 3, 5, 7, 10]}
-          tick={{ fill: AXIS_COLOR, fontSize: 11 }}
+          tick={{ fill: mutedColor, fontSize: 11 }}
           axisLine={false}
           tickLine={false}
         />
@@ -130,16 +140,16 @@ function ScoreLineChart({
         <Legend
           wrapperStyle={{ paddingTop: "16px" }}
           formatter={(value) => (
-            <span style={{ color: "#a0b49a", fontSize: "12px" }}>{value}</span>
+            <span style={{ color: mutedColor, fontSize: "12px" }}>{value}</span>
           )}
         />
         <Line
           type="monotone"
           dataKey="him"
           name={nameHim}
-          stroke={HIM_COLOR}
+          stroke={himColor}
           strokeWidth={2}
-          dot={{ r: 4, fill: HIM_COLOR, strokeWidth: 0 }}
+          dot={{ r: 4, fill: himColor, strokeWidth: 0 }}
           activeDot={{ r: 5, strokeWidth: 0 }}
           connectNulls={false}
         />
@@ -147,9 +157,9 @@ function ScoreLineChart({
           type="monotone"
           dataKey="her"
           name={nameHer}
-          stroke={HER_COLOR}
+          stroke={herColor}
           strokeWidth={2}
-          dot={{ r: 4, fill: HER_COLOR, strokeWidth: 0 }}
+          dot={{ r: 4, fill: herColor, strokeWidth: 0 }}
           activeDot={{ r: 5, strokeWidth: 0 }}
           connectNulls={false}
         />
@@ -160,16 +170,22 @@ function ScoreLineChart({
 
 // ─── Bar chart ─────────────────────────────────────────────────────────────────
 
-function ThemeBarChart({ data }: { data: ThemeBarPoint[] }) {
+function ThemeBarChart({ data, barColor, mutedColor, gridColor, cursorColor }: {
+  data: ThemeBarPoint[]
+  barColor: string
+  mutedColor: string
+  gridColor: string
+  cursorColor: string
+}) {
   return (
     <ResponsiveContainer width="100%" height={268}>
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 44, left: 4, bottom: 0 }}>
-        <CartesianGrid horizontal={false} stroke={GRID_COLOR} />
+        <CartesianGrid horizontal={false} stroke={gridColor} />
         <XAxis
           type="number"
           domain={[0, 10]}
           ticks={[0, 2, 4, 6, 8, 10]}
-          tick={{ fill: AXIS_COLOR, fontSize: 11 }}
+          tick={{ fill: mutedColor, fontSize: 11 }}
           axisLine={false}
           tickLine={false}
         />
@@ -177,14 +193,14 @@ function ThemeBarChart({ data }: { data: ThemeBarPoint[] }) {
           type="category"
           dataKey="label"
           width={150}
-          tick={{ fill: AXIS_COLOR, fontSize: 12 }}
+          tick={{ fill: mutedColor, fontSize: 12 }}
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(138,171,122,0.05)" }} />
+        <Tooltip content={<BarTooltip />} cursor={{ fill: cursorColor }} />
         <Bar
           dataKey="avgScore"
-          fill={HIM_COLOR}
+          fill={barColor}
           radius={[0, 4, 4, 0]}
           background={{ fill: "rgba(42,48,42,0.45)", radius: 4 } as React.SVGProps<SVGRectElement>}
           maxBarSize={26}
@@ -192,7 +208,7 @@ function ThemeBarChart({ data }: { data: ThemeBarPoint[] }) {
           <LabelList
             dataKey="avgScore"
             position="right"
-            style={{ fill: HIM_COLOR, fontSize: "12px", fontWeight: 600 }}
+            style={{ fill: barColor, fontSize: "12px", fontWeight: 600 }}
             formatter={(v) => v != null && Number(v) > 0 ? Number(v).toFixed(1) : ""}
           />
         </Bar>
@@ -214,6 +230,13 @@ export default function ProgressCharts({
   nameHim: string
   nameHer: string
 }) {
+  const cs = typeof window !== 'undefined' ? getComputedStyle(document.documentElement) : null
+  const accentColor  = cs?.getPropertyValue('--color-accent').trim()           ?? '#8aab7a'
+  const goldColor    = cs?.getPropertyValue('--color-gold').trim()              ?? '#c9a96e'
+  const mutedColor   = cs?.getPropertyValue('--color-muted-foreground').trim()  ?? '#7a8c75'
+  const gridColor    = hexToRgba(accentColor, 0.07)
+  const cursorColor  = hexToRgba(accentColor, 0.05)
+
   return (
     <div className="flex flex-col gap-6">
 
@@ -223,7 +246,15 @@ export default function ProgressCharts({
           How we&apos;ve been feeling over time
         </h2>
         <p className="text-xs text-muted-foreground mb-6">Daily average scores, 1–10</p>
-        <ScoreLineChart data={timelineData} nameHim={nameHim} nameHer={nameHer} />
+        <ScoreLineChart
+          data={timelineData}
+          nameHim={nameHim}
+          nameHer={nameHer}
+          himColor={accentColor}
+          herColor={goldColor}
+          mutedColor={mutedColor}
+          gridColor={gridColor}
+        />
       </div>
 
       {/* Horizontal bar chart */}
@@ -232,7 +263,13 @@ export default function ProgressCharts({
           Where we stand by theme
         </h2>
         <p className="text-xs text-muted-foreground mb-6">Average score across all ratings</p>
-        <ThemeBarChart data={themeBarData} />
+        <ThemeBarChart
+          data={themeBarData}
+          barColor={accentColor}
+          mutedColor={mutedColor}
+          gridColor={gridColor}
+          cursorColor={cursorColor}
+        />
       </div>
 
     </div>

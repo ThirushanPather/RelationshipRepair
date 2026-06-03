@@ -25,9 +25,9 @@ export const PALETTES: Palette[] = [
   {
     key: "dusk-rose",
     name: "Dusk Rose",
-    bg: "#1f1a1c", surface: "#271f22", surface2: "#302228", border: "#42303a",
-    accent: "#c48b9f", accentSoft: "rgba(196,139,159,0.12)",
-    text: "#ebe4e6", muted: "#8c757a", gold: "#c9a06e",
+    bg: "#1f1a1e", surface: "#2a1f27", surface2: "#332533", border: "#4a3347",
+    accent: "#e8a0b4", accentSoft: "rgba(232, 160, 180, 0.12)",
+    text: "#f0e8ec", muted: "#a08898", gold: "#d4a574",
   },
   {
     key: "slate-blue",
