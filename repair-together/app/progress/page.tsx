@@ -492,7 +492,6 @@ export default async function ProgressPage() {
     healthScore,
     milestones,
     insights,
-    totalTopicsCount,
     completedTopicsCount,
   } = await getProgressData()
 
