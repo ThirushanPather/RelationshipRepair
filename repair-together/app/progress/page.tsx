@@ -4,6 +4,7 @@ import nextDynamic from "next/dynamic"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase"
 import type { TimelinePoint, ThemeBarPoint } from "./ProgressCharts"
+import { ThemeIcon } from "@/components/icons/ThemeIcons"
 
 // ─── Dynamic import — Recharts must be client-only ────────────────────────────
 
@@ -11,8 +12,8 @@ const ProgressCharts = nextDynamic(() => import("./ProgressCharts"), {
   ssr: false,
   loading: () => (
     <div className="flex flex-col gap-6">
-      <div className="glass-card rounded-2xl h-[340px] animate-pulse" />
-      <div className="glass-card rounded-2xl h-[320px] animate-pulse" />
+      <div className="glass-card rounded-2xl h-85 animate-pulse" />
+      <div className="glass-card rounded-2xl h-80 animate-pulse" />
     </div>
   ),
 })
@@ -143,7 +144,7 @@ async function getProgressData() {
       ? theme.name.split(" & ")[0]
       : theme.name.split(" ").slice(0, 2).join(" ")
     return {
-      label:     `${theme.icon} ${shortName}`,
+      label:     shortName,
       fullName:  theme.name,
       avgScore:  parseFloat(avgScore.toFixed(1)),
     }
@@ -363,7 +364,7 @@ export default async function ProgressPage() {
                   >
                     {/* Theme */}
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-base leading-none shrink-0">{row.themeIcon}</span>
+                      <ThemeIcon themeName={row.themeName} size={16} className="shrink-0 text-muted-foreground" />
                       <span className="text-xs text-muted-foreground truncate hidden md:block">
                         {row.themeName.split(" & ")[0]}
                       </span>
@@ -423,7 +424,7 @@ export default async function ProgressPage() {
           <div className="relative">
             {/* Vertical line */}
             <div
-              className="absolute left-[11px] top-3 bottom-3 w-px bg-border/50 hidden md:block"
+              className="absolute left-2.75 top-3 bottom-3 w-px bg-border/50 hidden md:block"
               aria-hidden="true"
             />
 
@@ -432,7 +433,7 @@ export default async function ProgressPage() {
                 <div key={entry.key} className="flex items-start gap-4 md:gap-5">
                   {/* Dot */}
                   <div
-                    className="hidden md:flex shrink-0 mt-4 w-[23px] h-[23px] rounded-full
+                    className="hidden md:flex shrink-0 mt-4 w-5.75 h-5.75 rounded-full
                                bg-accent/15 border border-accent/30
                                items-center justify-center"
                     aria-hidden="true"
@@ -444,7 +445,7 @@ export default async function ProgressPage() {
                   <div className="glass-card rounded-xl px-4 py-4 flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-base leading-none shrink-0">{entry.themeIcon}</span>
+                        <ThemeIcon themeName={entry.themeName} size={16} className="shrink-0 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground truncate">
                           {entry.themeName}
                         </span>

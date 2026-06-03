@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { supabase } from "@/lib/supabase"
+import { ThemeIcon } from "@/components/icons/ThemeIcons"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -168,9 +169,7 @@ function ThemeCard({ theme }: { theme: ThemeStat }) {
       {/* Icon + name + description */}
       <div className="flex-1">
         <div className="flex items-center gap-2.5 mb-2">
-          <span className="text-[1.4rem] leading-none" aria-hidden="true">
-            {theme.icon}
-          </span>
+          <ThemeIcon themeName={theme.name} size={22} className="shrink-0 text-muted-foreground" />
           <h3 className="font-heading text-[1.1rem] text-foreground leading-snug">
             {theme.name}
           </h3>

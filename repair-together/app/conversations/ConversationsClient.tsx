@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import { supabase } from "@/lib/supabase"
+import { ThemeIcon } from "@/components/icons/ThemeIcons"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -522,7 +523,7 @@ export function ConversationsClient() {
                     : "text-muted-foreground hover:text-foreground hover:bg-white/4",
                 ].join(" ")}
               >
-                <span className="text-base leading-none shrink-0">{theme.icon}</span>
+                <ThemeIcon themeName={theme.name} size={16} className="shrink-0" />
                 <span className="leading-snug">{theme.name}</span>
               </button>
             )
@@ -552,7 +553,7 @@ export function ConversationsClient() {
                     : "text-muted-foreground border-border/50 bg-white/5",
                 ].join(" ")}
               >
-                <span>{theme.icon}</span>
+                <ThemeIcon themeName={theme.name} size={15} className="shrink-0" />
                 <span>{theme.name}</span>
               </button>
             )
@@ -566,9 +567,7 @@ export function ConversationsClient() {
           {activeTheme && (
             <header className="mb-8 md:mb-10">
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl md:text-3xl" aria-hidden="true">
-                  {activeTheme.icon}
-                </span>
+                <ThemeIcon themeName={activeTheme.name} size={28} className="shrink-0 text-accent" />
                 <h1 className="font-heading italic text-3xl md:text-[2.25rem] text-foreground leading-tight">
                   {activeTheme.name}
                 </h1>
