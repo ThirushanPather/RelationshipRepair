@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase"
 import { ThemeIcon } from "@/components/icons/ThemeIcons"
 import { TopicFormSheet } from "@/components/topics/TopicFormSheet"
 import { DeleteConfirmSheet } from "@/components/topics/DeleteConfirmSheet"
+import { ResetTopicSheet } from "@/components/topics/ResetTopicSheet"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,16 +116,18 @@ function SliderRow({
 
 function TopicMenu({
   onEdit,
+  onReset,
   onDelete,
   onClose,
 }: {
   onEdit: () => void
+  onReset: () => void
   onDelete: () => void
   onClose: () => void
 }) {
   return (
     <div
-      className="absolute right-0 top-full mt-1.5 glass-card rounded-xl z-20 min-w-36 py-1 overflow-hidden"
+      className="absolute right-0 top-full mt-1.5 glass-card rounded-xl z-20 min-w-40 py-1 overflow-hidden"
       style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}
       onClick={e => e.stopPropagation()}
     >
@@ -134,6 +137,14 @@ function TopicMenu({
                    hover:bg-white/8 transition-colors duration-100"
       >
         Edit topic
+      </button>
+      <button
+        onClick={() => { onClose(); onReset() }}
+        className="w-full text-left px-4 py-3 text-sm transition-colors duration-100
+                   hover:bg-white/4"
+        style={{ color: "rgba(196,122,106,0.75)" }}
+      >
+        Reset conversation
       </button>
       <button
         onClick={() => { onClose(); onDelete() }}
@@ -161,6 +172,7 @@ function TopicCard({
   onMenuOpen,
   onMenuClose,
   onEditTopic,
+  onResetTopic,
   onDeleteTopic,
 }: {
   topic: TopicRow
@@ -174,6 +186,7 @@ function TopicCard({
   onMenuOpen: () => void
   onMenuClose: () => void
   onEditTopic: () => void
+  onResetTopic: () => void
   onDeleteTopic: () => void
 }) {
   const { label, color } = DIFFICULTY_META[topic.difficulty]
@@ -229,6 +242,7 @@ function TopicCard({
             {menuOpen && (
               <TopicMenu
                 onEdit={onEditTopic}
+                onReset={onResetTopic}
                 onDelete={onDeleteTopic}
                 onClose={onMenuClose}
               />
@@ -410,6 +424,7 @@ export function ConversationsClient() {
   const [addSheetOpen, setAddSheetOpen] = useState(false)
   const [editTopic, setEditTopic] = useState<TopicRow | null>(null)
   const [deleteTopic, setDeleteTopic] = useState<TopicRow | null>(null)
+  const [resetTopic, setResetTopic] = useState<TopicRow | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [newTopicId, setNewTopicId] = useState<string | null>(null)
 
@@ -645,6 +660,20 @@ export function ConversationsClient() {
     showToast("Topic updated")
   }
 
+  async function handleResetConfirm() {
+    if (!resetTopic) return
+    const topicId = resetTopic.id
+    try {
+      const res = await fetch(`/api/topics/${topicId}/ratings`, { method: "DELETE" })
+      if (res.ok) {
+        setTopicStates(prev => ({ ...prev, [topicId]: defaultTopicState() }))
+        showToast("Conversation reset")
+      }
+    } finally {
+      setResetTopic(null)
+    }
+  }
+
   async function handleDeleteConfirm() {
     if (!deleteTopic) return
     const topicId = deleteTopic.id
@@ -797,6 +826,7 @@ export function ConversationsClient() {
                           onMenuOpen={() => setOpenMenuId(topic.id)}
                           onMenuClose={() => setOpenMenuId(null)}
                           onEditTopic={() => setEditTopic(topic)}
+                          onResetTopic={() => setResetTopic(topic)}
                           onDeleteTopic={() => setDeleteTopic(topic)}
                         />
                       )
@@ -852,6 +882,14 @@ export function ConversationsClient() {
           topicQuestion={deleteTopic.question}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTopic(null)}
+        />
+      )}
+
+      {resetTopic && (
+        <ResetTopicSheet
+          topicQuestion={resetTopic.question}
+          onConfirm={handleResetConfirm}
+          onCancel={() => setResetTopic(null)}
         />
       )}
     </>
