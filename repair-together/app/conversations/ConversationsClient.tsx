@@ -57,7 +57,7 @@ const DIFFICULTY_META = {
 function sliderFillStyle(value: number): React.CSSProperties {
   const pct = ((value - 1) / 9) * 100
   return {
-    background: `linear-gradient(to right, #8aab7a ${pct}%, rgba(42,48,42,0.6) ${pct}%)`,
+    background: `linear-gradient(to right, var(--color-accent) ${pct}%, rgba(42,48,42,0.6) ${pct}%)`,
   }
 }
 
@@ -136,7 +136,7 @@ function TopicCard({
           {state.completed && (
             <span
               className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 block"
-              style={{ background: "#8aab7a" }}
+              style={{ background: "var(--color-accent)" }}
             />
           )}
           <p

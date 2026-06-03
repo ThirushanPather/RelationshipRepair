@@ -72,27 +72,31 @@ repair-together/
 │   │   └── page.tsx                   Server component — all data + page render
 │   ├── settings/
 │   │   ├── loading.tsx                Skeleton loading state
-│   │   └── page.tsx                   "use client" — name customisation, appearance placeholder
-│   ├── globals.css                    Design system (colours, glass utilities, gradient mesh)
-│   ├── layout.tsx                     Root layout — fonts, manifest, AppShell
+│   │   └── page.tsx                   "use client" — palette switcher + name customisation
+│   ├── globals.css                    Design system (colour tokens, glass utilities, gradient mesh)
+│   ├── layout.tsx                     Root layout — fonts, manifest, palette init script, AppShell
 │   ├── loading.tsx                    Skeleton loading state for home page
 │   └── page.tsx                       Home page — welcome header, theme grid, recent activity
 │
 ├── components/
+│   ├── icons/
+│   │   └── ThemeIcons.tsx             ThemeIcon component — SVG line icons for each of the 6 themes
 │   ├── layout/
 │   │   ├── AppShell.tsx               Server component — composes Sidebar + main + BottomNav
 │   │   ├── BottomNav.tsx              "use client" — mobile bottom nav bar
 │   │   ├── nav-config.ts              Shared nav items array (single source of truth)
 │   │   └── Sidebar.tsx                "use client" — desktop sidebar (220px fixed)
-│   └── ui/                            shadcn components
-│       ├── button.tsx
-│       ├── card.tsx
-│       ├── progress.tsx
-│       └── slider.tsx
+│   ├── ui/                            shadcn components
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── progress.tsx
+│   │   └── slider.tsx
+│   └── PaletteSync.tsx                "use client" — syncs Supabase palette pref → localStorage on mount
 │
 ├── lib/
 │   ├── data.ts                        seedData() — inserts 6 themes + 41 topics + 2 settings rows
 │   ├── db.sql                         Run once in Supabase SQL editor to create schema + RLS
+│   ├── palettes.ts                    Palette definitions, applyPalette(), PALETTE_INIT_SCRIPT
 │   ├── supabase.ts                    Supabase client (single export: `supabase`)
 │   └── utils.ts                       shadcn cn() utility
 │
@@ -120,7 +124,7 @@ Run `lib/db.sql` once in the Supabase SQL editor. RLS is enabled on all tables w
 |---|---|---|
 | id | uuid | PK, gen_random_uuid() |
 | name | text | e.g. "Connection & Communication" |
-| icon | text | Emoji, e.g. "🔗" |
+| icon | text | Emoji stored in DB but **not rendered** — UI uses `ThemeIcon` SVG component instead |
 | description | text | One-line theme description |
 | sort_order | int | Display order (1–6) |
 | created_at | timestamptz | Default now() |
@@ -149,13 +153,16 @@ Run `lib/db.sql` once in the Supabase SQL editor. RLS is enabled on all tables w
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid | PK |
-| key | text | e.g. "name_him", "name_her" |
-| value | text | e.g. "Him", "Her" |
+| key | text | e.g. "name_him", "name_her", "ui-palette" |
+| value | text | e.g. "Him", "Her", "dusk-rose" |
+
+Note: `settings.key` has **no unique constraint**. All writes use select-then-update-or-insert by `id`.
 
 ### Seeded data
 - **6 themes**: Connection & Communication, Being Chosen, Effort & Reciprocity, Individual Fullness, Physical Intimacy, Future & Commitment
 - **41 topics** total, distributed across difficulty levels 1–3 within each theme
 - **2 settings rows**: `name_him = "Him"`, `name_her = "Her"`
+- `ui-palette` is written on first palette selection (not seeded)
 
 To seed: `POST /api/seed` (idempotent — skips if themes table already has rows).
 
@@ -164,28 +171,39 @@ To seed: `POST /api/seed` (idempotent — skips if themes table already has rows
 ## Design system
 
 ### Aesthetic
-Premium wellness / mindfulness app. Frosted matcha glass — organic, warm, intimate. Not clinical.
+Premium wellness / mindfulness app. Frosted glass — organic, warm, intimate. Not clinical. The default palette is Matcha; two additional palettes (Dusk Rose, Slate Blue) can be selected in Settings.
 
-### Colour tokens (defined in `app/globals.css` via `@theme`)
+### Colour palette system
 
-| Token | Value | Usage |
+Colours are defined as CSS custom properties in `app/globals.css` via `@theme {}`. The `@theme` values are the **Matcha defaults**. At runtime, `lib/palettes.ts` overrides them on the `<html>` element via inline style, which takes precedence over `:root` — all Tailwind utility classes and glass utilities respond instantly.
+
+The inline init script in `app/layout.tsx` runs synchronously before first paint (preventing a colour flash) by reading `localStorage("ui-palette")` and applying the stored palette. `components/PaletteSync.tsx` reconciles with the Supabase-stored value on every mount for cross-device sync.
+
+**Three palettes** (defined in `lib/palettes.ts`):
+
+| Key | Name | Accent |
 |---|---|---|
-| `--color-background` | `#1a1f1a` | Page background (deep matcha dark) |
+| `matcha` | Matcha (default) | `#8aab7a` green |
+| `dusk-rose` | Dusk Rose | `#c48b9f` rose |
+| `slate-blue` | Slate Blue | `#8a97c9` blue |
+
+**Colour tokens** (Matcha defaults — all overridden at runtime when a non-default palette is active):
+
+| Token | Matcha default | Usage |
+|---|---|---|
+| `--color-background` | `#1a1f1a` | Page background |
 | `--color-foreground` | `#e8ebe4` | Primary text |
 | `--color-surface` | `#222722` | Card / panel backgrounds |
 | `--color-surface2` | `#2a302a` | Inset surfaces, inputs |
 | `--color-border` | `#3a4238` | Subtle borders |
-| `--color-accent` | `#8aab7a` | Matcha green — active states, primary actions |
-| `--color-gold` | `#c9a96e` | App name, highlights, special moments |
-| `--color-muted` | `#2a302a` | Subtle background (shadcn `bg-muted`) |
+| `--color-accent` | `#8aab7a` | Active states, primary actions |
+| `--color-gold` | `#c9a96e` | App name, highlights |
 | `--color-muted-foreground` | `#7a8c75` | Secondary / muted text |
 | `--color-primary` | `#8aab7a` | shadcn primary (= accent) |
 | `--color-ring` | `#8aab7a` | Focus rings |
 | `--color-destructive` | `#e05252` | Errors / danger |
 
 Destructive/danger UI (e.g. delete buttons) uses `#c47a6a` — a warm rose-red — NOT `--color-destructive`. Inline: `color: "#c47a6a"`, `borderColor: "rgba(196,122,106,0.45)"`, `background: "rgba(196,122,106,0.10)"`.
-
-Accent soft (use inline): `rgba(138, 171, 122, 0.12)` = `bg-accent/12` in Tailwind.
 
 ### Typography
 - **Headings**: `font-heading` → Cormorant Garamond (loaded via `next/font/google`, variable `--font-cormorant`)
@@ -201,21 +219,39 @@ Accent soft (use inline): `rgba(138, 171, 122, 0.12)` = `bg-accent/12` in Tailwi
 | `glass-input` | Form inputs and text fields |
 | `glass-button` | Secondary / ghost action buttons |
 
-The gradient mesh background is a fixed `html::before` pseudo-element (`z-index: -1`) — glass elements blur against this rather than a flat colour.
+All glass utilities use `color-mix(in srgb, var(--color-*) α%, transparent)` — **never hardcoded rgba values** — so they respond to palette changes. The gradient mesh background is a fixed `html::before` pseudo-element (`z-index: -1`) using `var(--color-background)` and `color-mix()` tints.
+
+### Theme icons
+
+The `themes.icon` DB column stores emojis but they are **not rendered in the UI**. Instead, use `<ThemeIcon themeName={theme.name} size={N} className="..." />` from `@/components/icons/ThemeIcons`.
+
+The component maps theme names to one of 6 custom stroke-based SVGs (strokeWidth 1.5, fill none, currentColor):
+
+| Theme | Icon |
+|---|---|
+| Connection & Communication | Two overlapping speech bubbles |
+| Being Chosen | Shield outline |
+| Effort & Reciprocity | Circular refresh arrows |
+| Individual Fullness | Upward trend line with peak circle |
+| Physical Intimacy | Heart outline |
+| Future & Commitment | Compass dial |
+
+Matching is by keyword (`includes` on lowercase name). Icons inherit colour from the parent element via `currentColor`.
 
 ### Additional CSS classes (plain CSS, not Tailwind utilities)
 
 | Class | Use for |
 |---|---|
-| `rating-slider` | `<input type="range">` on the conversations page — accent green fill via inline gradient, gold thumb via `::webkit-slider-thumb` |
-| `scrollbar-none` | `@utility` — hides scrollbars on horizontally scrollable containers (mobile theme tabs, dropdown panels) |
+| `rating-slider` | `<input type="range">` on the conversations page — accent green fill via inline gradient, gold thumb via `::webkit-slider-thumb` (uses `var(--color-gold)`) |
+| `scrollbar-none` | `@utility` — hides scrollbars on horizontally scrollable containers |
 
 ### Tailwind v4 notes
 - **No `tailwind.config.ts` is used for theme config.** All design tokens live in `@theme {}` inside `app/globals.css`.
+- Tailwind v4 utility classes compile to `var(--color-*)` references — they respond to runtime CSS variable overrides automatically.
 - Custom utilities are defined with `@utility` (not `@layer utilities`).
 - The PostCSS plugin is `@tailwindcss/postcss`, not `tailwindcss`.
 - `tailwind.config.ts` exists in the repo but is intentionally empty — kept only for editor tooling.
-- Use canonical Tailwind class names (e.g. `min-h-11` not `min-h-[44px]`, `w-55` not `w-[220px]`) — the linter flags non-canonical forms.
+- Use canonical Tailwind class names (e.g. `min-h-11` not `min-h-[44px]`, `w-55` not `w-[220px]`, `bg-white/4` not `bg-white/[0.04]`) — the linter flags non-canonical forms.
 
 ---
 
@@ -256,7 +292,7 @@ Note: the DB column for `themeId` is `theme_id` (snake_case) and for `createdAt`
 Server component with `export const dynamic = "force-dynamic"`.
 
 - **Welcome header**: Gold italic title + muted subtitle + accent stat pill showing `X of Y topics explored together` (counts only topics where **both** him and her have a rating)
-- **Theme grid**: 2-column (desktop) / 1-column (mobile) grid of 6 `ThemeCard` components. Each shows icon, name, description, a 1px progress bar, topics explored count, and a `glass-button` link to `/conversations?theme=[themeId]`
+- **Theme grid**: 2-column (desktop) / 1-column (mobile) grid of 6 `ThemeCard` components. Each shows a `<ThemeIcon>` SVG, name, description, a 1px progress bar, topics explored count, and a `glass-button` link to `/conversations?theme=[themeId]`
 - **Recent Activity**: Last 5 ratings via Supabase join. Shows score badge, question (2-line clamp), person display name, relative time via `date-fns formatDistanceToNow`. Empty state: centred `✦` ornament
 - **Skeleton**: `app/loading.tsx` mirrors page layout with `animate-pulse` + `glass-card` shapes
 
@@ -269,8 +305,8 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 `page.tsx` is a thin Suspense wrapper. All logic lives in `ConversationsClient.tsx` (`"use client"`).
 
 **Layout:**
-- Desktop: 220px left panel (`glass-nav`) listing all 6 themes + independently scrollable topic area on the right. The full page fills `md:h-dvh md:overflow-hidden`.
-- Mobile: sticky horizontal scrollable theme tab row (`scrollbar-none`) at the top, topics scroll below.
+- Desktop: 220px left panel (`glass-nav`) listing all 6 themes (each with a `<ThemeIcon size={16}>`) + independently scrollable topic area on the right. The full page fills `md:h-dvh md:overflow-hidden`.
+- Mobile: sticky horizontal scrollable theme tab row (`scrollbar-none`) at the top with `<ThemeIcon size={15}>` pills, topics scroll below.
 - Active theme driven by `?theme=[themeId]` URL param; defaults to first theme (set via `router.replace` on load).
 
 **Topics:**
@@ -304,9 +340,9 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 **Sections:**
 1. **Summary stats** — 4 `glass-card` tiles: topics rated by both, him avg, her avg, most recent session date. Shows `—` when no data.
 2. **Score over time** (line chart in `ProgressCharts.tsx`) — daily averages per person. Him: `#8aab7a`. Her: `#c9a96e`. Empty state inside chart area when no ratings.
-3. **Theme breakdown** (horizontal bar chart) — average combined score per theme. All 6 themes always shown; zero-rated themes show bars at 0.
-4. **Topic detail table** — all rated topics, columns: Theme / Question / His Score / Her Score / Gap. Sorted by most recently updated. Rows where gap ≥ 3 get a subtle gold/amber background (`rgba(201,169,110,0.07)`).
-5. **Session timeline** — every save event most-recent-first, deduplicated by `topic_id + rated_at` (each save = 2 DB rows with identical timestamp). Shows date, theme, question, score pills.
+3. **Theme breakdown** (horizontal bar chart) — average combined score per theme. All 6 themes always shown; zero-rated themes show bars at 0. Y-axis labels use `shortName` (e.g. "Connection", "Being Chosen") — no emoji.
+4. **Topic detail table** — all rated topics, columns: Theme / Question / His Score / Her Score / Gap. Each row has a `<ThemeIcon size={16}>`. Sorted by most recently updated. Rows where gap ≥ 3 get a subtle gold/amber background (`rgba(201,169,110,0.07)`).
+5. **Session timeline** — every save event most-recent-first, deduplicated by `topic_id + rated_at` (each save = 2 DB rows with identical timestamp). Each entry shows a `<ThemeIcon size={16}>`, date, theme name, question, score pills.
 
 **Error handling:** `getProgressData()` is wrapped in `try/catch`; returns `EMPTY_DATA` on failure so the page never crashes.
 
@@ -316,13 +352,17 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 
 Full `"use client"` page. Loads settings on mount via `try/catch/finally`.
 
-**Section 1 — Your Names:**
+**Section 1 — Appearance (palette switcher):**
+- Three `PaletteSwatch` buttons in a flex row: Matcha, Dusk Rose, Slate Blue.
+- Each swatch is an 80×48px rounded rectangle showing the palette's bg colour, a small accent circle, and a border in the palette's border colour.
+- Active swatch has a 2.5px ring in its own accent colour. Active label is coloured with the swatch's accent; inactive labels use `text-muted-foreground`.
+- Clicking a swatch: immediately calls `applyPalette()` (sets all CSS variables on `<html>`), saves to `localStorage("ui-palette")`, then upserts to Supabase `settings` table under key `"ui-palette"` (select-by-id then update, or insert if not found).
+- On mount, the active swatch is synced from `localStorage` immediately, then from Supabase if a value is stored there (Supabase value takes precedence for cross-device sync).
+
+**Section 2 — Personalise (names):**
 - Two `glass-input` text fields (side-by-side on `sm+`, stacked on mobile) for `name_him` and `name_her`.
 - Saves via two parallel `.update().eq("key", ...)` calls. Calls `router.refresh()` after save so server components pick up new names.
 - Shows "Names updated" `StatusDot` for 3 seconds on success.
-
-**Section 2 — Appearance:**
-- Placeholder `glass-card` labelled "Appearance — coming soon". No functionality yet; reserved for a colour palette switcher.
 
 ---
 
@@ -343,9 +383,12 @@ Full `"use client"` page. Loads settings on mount via `try/catch/finally`.
 - Server components are the default — no `"use client"` unless needed
 - Do not add authentication or multi-user logic — this is a private two-person app
 - Do not create new colour tokens outside of `app/globals.css @theme` — use what exists
+- Do not use hardcoded rgba hex values from the palette in `@utility` classes or plain CSS — always use `color-mix(in srgb, var(--color-*) α%, transparent)` so glass utilities respond to palette changes
 - Keep glassmorphism restrained: every new surface should use `glass-card` or `glass-nav`, not raw background colours
 - Every async data load must be wrapped in `try/catch`. `setLoading(false)` must always be reached (use `finally` or place it in both branches). The UI must never hang in a loading state due to a DB error.
 - Every route directory must have a `loading.tsx` skeleton that matches the glass aesthetic
 - Use Tailwind canonical class names — the linter flags non-canonical forms (e.g. use `min-h-11` not `min-h-[44px]`, `w-55` not `w-[220px]`, `bg-white/4` not `bg-white/[0.04]`)
 - Recharts must always be loaded via `next/dynamic` with `ssr: false` — it uses browser APIs that break SSR
 - Destructive/danger actions use warm rose `#c47a6a` inline styles, NOT the `--color-destructive` token (`#e05252`). The destructive token is for error messages only.
+- Theme icons are always rendered via `<ThemeIcon themeName={...} size={N} />` — never render `theme.icon` (the DB emoji field) directly
+- The `settings` table has no unique constraint on `key`. Writes for new keys must use select-by-id then update-or-insert, not plain `.update().eq("key", ...)`
