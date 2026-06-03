@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import {
+  PALETTES,
+  DEFAULT_PALETTE_KEY,
+  getPalette,
+  applyPalette,
+  type Palette,
+  type PaletteKey,
+} from "@/lib/palettes"
 
 // ─── Inline status message ────────────────────────────────────────────────────
 
@@ -18,10 +26,56 @@ function StatusDot({ message, variant = "success" }: { message: string; variant?
   )
 }
 
+// ─── Palette swatch ───────────────────────────────────────────────────────────
+
+function PaletteSwatch({
+  palette,
+  isActive,
+  onSelect,
+}: {
+  palette: Palette
+  isActive: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      onClick={onSelect}
+      className="flex flex-col items-center gap-2"
+      aria-label={`${palette.name} theme`}
+      aria-pressed={isActive}
+    >
+      {/* Mini preview */}
+      <div
+        className="w-20 h-12 rounded-xl flex items-center justify-center transition-all duration-200"
+        style={{
+          background: palette.bg,
+          border: `1px solid ${palette.border}`,
+          boxShadow: isActive ? `0 0 0 2.5px ${palette.accent}` : "none",
+        }}
+      >
+        <div
+          className="w-3 h-3 rounded-full"
+          style={{ background: palette.accent }}
+        />
+      </div>
+      {/* Label */}
+      <span
+        className={`text-xs transition-colors duration-200 ${isActive ? "" : "text-muted-foreground"}`}
+        style={isActive ? { color: palette.accent } : undefined}
+      >
+        {palette.name}
+      </span>
+    </button>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const router = useRouter()
+
+  // ── Palette ──────────────────────────────────────────────────────────────────
+  const [activePalette, setActivePalette] = useState<PaletteKey>(DEFAULT_PALETTE_KEY)
 
   // ── Names ────────────────────────────────────────────────────────────────────
   const [nameHim, setNameHim] = useState("")
@@ -34,12 +88,28 @@ export default function SettingsPage() {
   // ── Load on mount ────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    // Sync active swatch with whatever the inline script already applied
+    const local = localStorage.getItem("ui-palette")
+    if (local && PALETTES.some(p => p.key === local)) {
+      setActivePalette(local as PaletteKey)
+    }
+
     async function load() {
       try {
         const { data } = await supabase.from("settings").select("key,value")
         const settings = (data ?? []) as { key: string; value: string }[]
         setNameHim(settings.find(s => s.key === "name_him")?.value ?? "Him")
         setNameHer(settings.find(s => s.key === "name_her")?.value ?? "Her")
+
+        // Prefer Supabase palette over localStorage
+        const dbPaletteKey = settings.find(s => s.key === "ui-palette")?.value
+        if (dbPaletteKey && PALETTES.some(p => p.key === dbPaletteKey)) {
+          setActivePalette(dbPaletteKey as PaletteKey)
+          if (dbPaletteKey !== localStorage.getItem("ui-palette")) {
+            applyPalette(getPalette(dbPaletteKey))
+            localStorage.setItem("ui-palette", dbPaletteKey)
+          }
+        }
       } catch (err) {
         console.error("Failed to load settings:", err)
       } finally {
@@ -48,6 +118,33 @@ export default function SettingsPage() {
     }
     load()
   }, [])
+
+  // ── Select palette ───────────────────────────────────────────────────────────
+
+  async function selectPalette(key: PaletteKey) {
+    const palette = getPalette(key)
+    applyPalette(palette)
+    localStorage.setItem("ui-palette", key)
+    setActivePalette(key)
+
+    try {
+      // Settings table has no unique constraint on key — check then update/insert
+      const { data: existing } = await supabase
+        .from("settings")
+        .select("id")
+        .eq("key", "ui-palette")
+        .limit(1)
+        .maybeSingle()
+
+      if (existing?.id) {
+        await supabase.from("settings").update({ value: key }).eq("id", existing.id)
+      } else {
+        await supabase.from("settings").insert({ key: "ui-palette", value: key })
+      }
+    } catch (err) {
+      console.error("Failed to persist palette:", err)
+    }
+  }
 
   // ── Save names ───────────────────────────────────────────────────────────────
 
@@ -86,7 +183,32 @@ export default function SettingsPage() {
         </p>
       </header>
 
-      {/* ── Section 1: Names ─────────────────────────────────────────────────── */}
+      {/* ── Section 1: Appearance ────────────────────────────────────────────── */}
+      <section>
+        <p className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground mb-4">
+          Appearance
+        </p>
+
+        <div className="glass-card rounded-2xl p-5 md:p-7">
+          <h2 className="font-heading italic text-2xl text-foreground mb-1">Colour Theme</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Choose a palette for the app. Changes apply instantly across all pages.
+          </p>
+
+          <div className="flex flex-wrap gap-5">
+            {PALETTES.map(palette => (
+              <PaletteSwatch
+                key={palette.key}
+                palette={palette}
+                isActive={activePalette === palette.key}
+                onSelect={() => selectPalette(palette.key)}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 2: Names ─────────────────────────────────────────────────── */}
       <section>
         <p className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground mb-4">
           Personalise
@@ -155,18 +277,6 @@ export default function SettingsPage() {
             {namesSaved && <StatusDot message="Names updated" />}
             {namesError && <StatusDot message={namesError} variant="error" />}
           </div>
-        </div>
-      </section>
-
-      {/* ── Section 2: Appearance ────────────────────────────────────────────── */}
-      <section>
-        <p className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground mb-4">
-          Appearance
-        </p>
-
-        <div className="glass-card rounded-2xl p-5 md:p-7">
-          <h2 className="font-heading italic text-2xl text-foreground mb-1">Appearance</h2>
-          <p className="text-sm text-muted-foreground">Coming soon</p>
         </div>
       </section>
 

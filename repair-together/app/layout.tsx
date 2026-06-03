@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { Cormorant_Garamond, DM_Sans } from "next/font/google"
 import { AppShell } from "@/components/layout/AppShell"
+import { PaletteSync } from "@/components/PaletteSync"
+import { PALETTE_INIT_SCRIPT } from "@/lib/palettes"
 import "./globals.css"
 
 const cormorant = Cormorant_Garamond({
@@ -33,6 +35,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cormorant.variable} ${dmSans.variable}`}>
       <body className="antialiased">
+        {/* Runs sync before paint — applies stored palette to prevent colour flash */}
+        <script dangerouslySetInnerHTML={{ __html: PALETTE_INIT_SCRIPT }} />
+        <PaletteSync />
         <AppShell>{children}</AppShell>
       </body>
     </html>

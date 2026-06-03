@@ -132,7 +132,7 @@ html::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background-color: #1a1f1a;
+  background-color: var(--color-background);
   background-image:
     radial-gradient(ellipse 80% 70% at 5% 0%,   rgba(138, 171, 122, 0.07) 0%, transparent 55%),
     radial-gradient(ellipse 55% 60% at 95% 100%, rgba(42, 65, 42, 0.45)   0%, transparent 55%),
