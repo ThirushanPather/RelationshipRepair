@@ -343,6 +343,7 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 - Tapping "Revisit this conversation" transitions (`max-height` + `opacity`, 200ms) to the edit view with sliders pre-populated from the last saved scores. Save button reads "Update scores". A "Cancel" text link (`min-h-11`) reverts to the saved snapshot and returns to the summary view without saving.
 - **Revisit save** calls `.update().eq("id", ...)` on the existing rating rows (IDs stored in `TopicState`). Does NOT insert new rows — history is preserved.
 - **First-time save** uses `.insert().select("id,person")` so the returned IDs can be stored in `TopicState` for future revisit updates.
+- **After every successful save** (both paths) `router.refresh()` is called to purge the Next.js client-side Router Cache. `force-dynamic` on `/progress` prevents static generation but not the 30s Router Cache TTL — without this call, navigating to `/progress` after saving can serve a stale prefetched payload. `router.refresh()` clears all cached route entries without resetting `ConversationsClient`'s local state.
 - `TopicState` carries: `completed`, `himRatingId`, `herRatingId`, `revisiting`, plus a saved-scores snapshot (`savedHimScore`, `savedHerScore`, `savedHimNote`, `savedHerNote`) used to revert on Cancel.
 
 **Error handling:** `load()` is wrapped in `try/catch`; `setLoading(false)` is always reached.
@@ -373,6 +374,8 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 3. **Theme breakdown** (horizontal bar chart) — average combined score per theme. All 6 themes always shown; zero-rated themes show bars at 0. Y-axis labels use `shortName` (e.g. "Connection", "Being Chosen") — no emoji.
 4. **Topic detail table** — all rated topics, columns: Theme / Question / His Score / Her Score / Gap. Each row has a `<ThemeIcon size={16}>`. Sorted by most recently updated. Rows where gap ≥ 3 get a subtle gold/amber background (`rgba(201,169,110,0.07)`).
 5. **Session timeline** — every save event most-recent-first, deduplicated by `topic_id + rated_at` (each save = 2 DB rows with identical timestamp). Each entry shows a `<ThemeIcon size={16}>`, date, theme name, question, score pills.
+
+**Caching note:** `export const dynamic = "force-dynamic"` prevents static generation but does NOT disable the Next.js client-side Router Cache (30s TTL). The `/conversations` page calls `router.refresh()` after every successful save to purge this cache, ensuring `/progress` always reflects current DB state on navigation.
 
 **Error handling:** `getProgressData()` is wrapped in `try/catch`; returns `EMPTY_DATA` on failure so the page never crashes.
 
@@ -463,6 +466,7 @@ Two reusable bottom sheet components follow a shared pattern:
 - Keep glassmorphism restrained: every new surface should use `glass-card` or `glass-nav`, not raw background colours. For surfaces that need higher opacity (overlays, bottom sheets, bottom nav), use inline `style` to override the background with a higher `color-mix()` percentage rather than creating new utilities.
 - Every async data load must be wrapped in `try/catch`. `setLoading(false)` must always be reached (use `finally` or place it in both branches). The UI must never hang in a loading state due to a DB error.
 - Every route directory must have a `loading.tsx` skeleton that matches the glass aesthetic
+- After any write to the DB that should be reflected on a server-component page (e.g. `/progress`), call `router.refresh()` from the client component. `force-dynamic` alone does not prevent the Next.js Router Cache from serving a stale prefetched payload on client-side navigation
 - Use Tailwind canonical class names — the linter flags non-canonical forms (e.g. use `min-h-11` not `min-h-[44px]`, `w-55` not `w-[220px]`, `bg-white/4` not `bg-white/[0.04]`)
 - Recharts must always be loaded via `next/dynamic` with `ssr: false` — it uses browser APIs that break SSR
 - Destructive/danger actions use warm rose `#c47a6a` inline styles, NOT the `--color-destructive` token (`#e05252`). The destructive token is for error messages only.
