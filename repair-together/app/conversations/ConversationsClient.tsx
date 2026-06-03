@@ -615,6 +615,12 @@ export function ConversationsClient() {
           savedHimNote: s.himNote,
           savedHerNote: s.herNote,
         })
+        // Purge the client-side Router Cache so /progress always reflects
+        // the latest ratings. force-dynamic prevents static generation but
+        // does not prevent Next.js from serving a prefetched RSC payload
+        // from the Router Cache (30s TTL). router.refresh() clears all
+        // cached route entries without resetting client state.
+        router.refresh()
       }
     } else {
       const { data, error } = await supabase
@@ -640,6 +646,7 @@ export function ConversationsClient() {
           savedHimNote: s.himNote,
           savedHerNote: s.herNote,
         })
+        router.refresh()
       }
     }
   }
