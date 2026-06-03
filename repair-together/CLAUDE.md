@@ -389,6 +389,16 @@ Full `"use client"` page. Loads settings on mount via `try/catch/finally`.
 - Clicking a swatch: immediately calls `applyPalette()` (sets all CSS variables on `<html>`), saves to `localStorage("ui-palette")`, then upserts to Supabase `settings` table under key `"ui-palette"` (select-by-id then update, or insert if not found).
 - On mount, the active swatch is synced from `localStorage` immediately, then from Supabase if a value is stored there (Supabase value takes precedence for cross-device sync).
 
+**Section 3 — Reset Data:**
+- A `glass-card` listing all 6 themes, each row showing `<ThemeIcon>` + theme name on the left and a rose ghost `Reset` button on the right.
+- Themes are fetched in the same `Promise.all` as settings on mount (no extra round-trip). Loading skeleton: 6 animated `bg-white/5` bars.
+- Tapping `Reset` expands an inline confirmation below that row (`maxHeight` + `opacity` transition, 200ms ease-out). Only one row can be in confirmation state at a time — opening a new one collapses any previously open confirmation.
+- Confirmation shows: "Reset all conversations in [theme name]?", "This cannot be undone." in muted text, and two buttons — "Yes, reset" (rose destructive style) / "Cancel" (ghost muted).
+- While the API call is in-flight both buttons are disabled and "Yes, reset" shows a rose spinner.
+- After success: confirmation collapses, the "All scores cleared" message fades in beside the Reset button (opacity 0 → 1), then fades out at 1700ms, fully cleared at 2000ms. Timer refs are used to cancel stale timers on back-to-back resets.
+- State: `confirmingThemeId: string | null`, `resettingThemeId: string | null`, `resetSuccessThemeId: string | null`, `successFading: boolean`.
+- Calls `DELETE /api/themes/[id]/ratings`; does NOT reload the page.
+
 **Section 2 — Personalise (names):**
 - Two `glass-input` text fields (side-by-side on `sm+`, stacked on mobile) for `name_him` and `name_her`.
 - Saves via two parallel `.update().eq("key", ...)` calls. Calls `router.refresh()` after save so server components pick up new names.
@@ -406,6 +416,7 @@ Full `"use client"` page. Loads settings on mount via `try/catch/finally`.
 | `/api/topics/[id]` | PATCH | Updates a topic. Body: `{ question?, difficulty? }`. Returns updated row. 404 if not found. |
 | `/api/topics/[id]` | DELETE | Deletes a topic and all its ratings (explicit cascade). Returns `{ success: true }`. 404 if not found. |
 | `/api/topics/[id]/ratings` | DELETE | Deletes all ratings for a topic without touching the topic row itself. Returns `{ success: true, deleted: N }`. 404 if topic not found. |
+| `/api/themes/[id]/ratings` | DELETE | Deletes all ratings for every topic in a theme. Fetches all topic IDs where `theme_id = [id]`, then bulk-deletes matching ratings. Returns `{ success: true, deleted: N }`. 404 if theme not found. Does NOT delete topics or the theme. |
 
 All topic routes follow the same error pattern as `/api/seed`: `try/catch` returning `{ error: message }` with status 500 on failure. Use `.maybeSingle()` (not `.single()`) when checking existence by ID — returns `null` rather than throwing when no row is found.
 

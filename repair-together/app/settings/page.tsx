@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
+import { ThemeIcon } from "@/components/icons/ThemeIcons"
+import type { Theme } from "@/types"
 import {
   PALETTES,
   DEFAULT_PALETTE_KEY,
@@ -85,6 +87,18 @@ export default function SettingsPage() {
   const [namesError, setNamesError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // ── Themes (reset section) ────────────────────────────────────────────────────
+  const [themes, setThemes] = useState<Theme[]>([])
+  const [themesLoading, setThemesLoading] = useState(true)
+  const [themesError, setThemesError] = useState<string | null>(null)
+
+  // ── Reset flow ───────────────────────────────────────────────────────────────
+  const [confirmingThemeId, setConfirmingThemeId] = useState<string | null>(null)
+  const [resettingThemeId, setResettingThemeId] = useState<string | null>(null)
+  const [resetSuccessThemeId, setResetSuccessThemeId] = useState<string | null>(null)
+  const [successFading, setSuccessFading] = useState(false)
+  const successTimers = useRef<ReturnType<typeof setTimeout>[]>([])
+
   // ── Load on mount ────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -96,8 +110,12 @@ export default function SettingsPage() {
 
     async function load() {
       try {
-        const { data } = await supabase.from("settings").select("key,value")
-        const settings = (data ?? []) as { key: string; value: string }[]
+        const [settingsResult, themesResult] = await Promise.all([
+          supabase.from("settings").select("key,value"),
+          supabase.from("themes").select("id,name,icon,description").order("sort_order"),
+        ])
+
+        const settings = (settingsResult.data ?? []) as { key: string; value: string }[]
         setNameHim(settings.find(s => s.key === "name_him")?.value ?? "Him")
         setNameHer(settings.find(s => s.key === "name_her")?.value ?? "Her")
 
@@ -110,13 +128,33 @@ export default function SettingsPage() {
             localStorage.setItem("ui-palette", dbPaletteKey)
           }
         }
+
+        if (themesResult.error) {
+          setThemesError("Could not load themes.")
+        } else {
+          setThemes(
+            (themesResult.data ?? []).map(t => ({
+              id: t.id,
+              name: t.name,
+              icon: t.icon,
+              description: t.description,
+            }))
+          )
+        }
       } catch (err) {
         console.error("Failed to load settings:", err)
+        setThemesError("Could not load themes.")
       } finally {
         setLoading(false)
+        setThemesLoading(false)
       }
     }
     load()
+
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      successTimers.current.forEach(clearTimeout)
+    }
   }, [])
 
   // ── Select palette ───────────────────────────────────────────────────────────
@@ -166,6 +204,37 @@ export default function SettingsPage() {
     setNamesSaved(true)
     router.refresh()
     setTimeout(() => setNamesSaved(false), 3000)
+  }
+
+  // ── Reset theme ──────────────────────────────────────────────────────────────
+
+  async function resetTheme(themeId: string) {
+    setResettingThemeId(themeId)
+    try {
+      const res = await fetch(`/api/themes/${themeId}/ratings`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? "Failed to reset theme")
+      }
+
+      setConfirmingThemeId(null)
+      setResetSuccessThemeId(themeId)
+      setSuccessFading(false)
+
+      // Clear any pending timers from a previous success
+      successTimers.current.forEach(clearTimeout)
+      successTimers.current = [
+        setTimeout(() => setSuccessFading(true), 1700),
+        setTimeout(() => {
+          setResetSuccessThemeId(null)
+          setSuccessFading(false)
+        }, 2000),
+      ]
+    } catch (err) {
+      console.error("Failed to reset theme:", err)
+    } finally {
+      setResettingThemeId(null)
+    }
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -277,6 +346,147 @@ export default function SettingsPage() {
             {namesSaved && <StatusDot message="Names updated" />}
             {namesError && <StatusDot message={namesError} variant="error" />}
           </div>
+        </div>
+      </section>
+
+      {/* ── Section 3: Reset Data ─────────────────────────────────────────────── */}
+      <section>
+        <p className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground mb-4">
+          Reset Data
+        </p>
+
+        <div className="glass-card rounded-2xl p-5 md:p-7">
+          <h2 className="font-heading italic text-2xl text-foreground mb-1">Reset a theme</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Remove all scores and notes for every topic in a theme. Topics are kept — only the ratings are cleared.
+          </p>
+
+          {themesLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-11 rounded-lg bg-white/5 animate-pulse" />
+              ))}
+            </div>
+          ) : themesError ? (
+            <p className="text-sm text-muted-foreground">{themesError}</p>
+          ) : (
+            <div>
+              {themes.map((theme, index) => {
+                const isConfirming = confirmingThemeId === theme.id
+                const isResetting = resettingThemeId === theme.id
+                const isSuccess = resetSuccessThemeId === theme.id
+
+                return (
+                  <div
+                    key={theme.id}
+                    style={{
+                      borderBottom:
+                        index < themes.length - 1
+                          ? "1px solid color-mix(in srgb, var(--color-border) 60%, transparent)"
+                          : "none",
+                    }}
+                  >
+                    {/* Theme row */}
+                    <div className="flex items-center justify-between py-3 gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <ThemeIcon
+                          themeName={theme.name}
+                          size={18}
+                          className="text-muted-foreground shrink-0"
+                        />
+                        <span className="text-sm text-foreground truncate">{theme.name}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        {/* Success message — always rendered, fades in/out via opacity */}
+                        <span
+                          className="text-xs transition-opacity duration-300 pointer-events-none"
+                          style={{
+                            color: "var(--color-accent)",
+                            opacity: isSuccess ? (successFading ? 0 : 1) : 0,
+                          }}
+                        >
+                          All scores cleared
+                        </span>
+
+                        <button
+                          onClick={() =>
+                            setConfirmingThemeId(isConfirming ? null : theme.id)
+                          }
+                          disabled={isResetting}
+                          aria-expanded={isConfirming}
+                          className="min-h-11 px-3 rounded-lg text-sm transition-colors duration-200 disabled:opacity-50"
+                          style={{
+                            color: "#c47a6a",
+                            border: "1px solid rgba(196,122,106,0.45)",
+                            background: isConfirming
+                              ? "rgba(196,122,106,0.10)"
+                              : "rgba(196,122,106,0.05)",
+                          }}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Inline confirmation — expands below the row */}
+                    <div
+                      style={{
+                        maxHeight: isConfirming ? "140px" : "0",
+                        opacity: isConfirming ? 1 : 0,
+                        overflow: "hidden",
+                        transition: "max-height 200ms ease-out, opacity 200ms ease-out",
+                      }}
+                    >
+                      <div className="pb-4 pl-9 pr-1">
+                        <p className="text-sm text-foreground mb-0.5">
+                          Reset all conversations in{" "}
+                          <span className="italic">{theme.name}</span>?
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          This cannot be undone.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => resetTheme(theme.id)}
+                            disabled={isResetting}
+                            className="min-h-11 px-4 rounded-lg text-sm transition-colors duration-200 disabled:opacity-60 flex items-center gap-2"
+                            style={{
+                              color: "#c47a6a",
+                              border: "1px solid rgba(196,122,106,0.45)",
+                              background: "rgba(196,122,106,0.10)",
+                            }}
+                          >
+                            {isResetting ? (
+                              <>
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full animate-spin shrink-0"
+                                  style={{
+                                    border: "1.5px solid #c47a6a",
+                                    borderTopColor: "transparent",
+                                  }}
+                                />
+                                Resetting…
+                              </>
+                            ) : (
+                              "Yes, reset"
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setConfirmingThemeId(null)}
+                            disabled={isResetting}
+                            className="min-h-11 px-4 rounded-lg text-sm glass-button text-muted-foreground transition-colors duration-200 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
 
