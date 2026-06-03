@@ -269,14 +269,14 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 `page.tsx` is a thin Suspense wrapper. All logic lives in `ConversationsClient.tsx` (`"use client"`).
 
 **Layout:**
-- Desktop: 220px left panel (`glass-nav`) listing all 6 themes + independently scrollable topic area on the right. The full page fills `md:h-dvh md:overflow-hidden`.
-- Mobile: sticky horizontal scrollable theme tab row (`scrollbar-none`) at the top, topics scroll below.
+- Desktop (≥ md): 220px left panel (`glass-nav`) listing all 6 themes + independently scrollable topic area on the right. The full page fills `md:h-dvh md:overflow-hidden`. Topics grouped into Easy / Medium / Hard sections with coloured dividers.
+- Mobile (< md): sticky horizontal scrollable theme pill row at the top. Below it, a **single-card carousel** — one topic at a time, `←` / `→` arrow buttons (48×48px `glass-button`, `ChevronLeft`/`ChevronRight` from lucide-react) flank the card. `pt-[25vh]` pushes the card into the lower ~70% of the viewport for thumb reach; `pb-20` clears the bottom nav (80px). `mobileTopicIndex` state (reset to 0 on theme change) tracks position.
 - Active theme driven by `?theme=[themeId]` URL param; defaults to first theme (set via `router.replace` on load).
 
 **Topics:**
-- Grouped into Easy / Medium / Hard sections with coloured dividers (`#8aab7a` / `#c9a96e` / `#c47a6a`).
-- Each **topic card** contains: question in Cormorant Garamond italic, difficulty badge, and either a summary view (completed) or slider rows (not yet rated).
-- Sliders use native `<input type="range">` with the `rating-slider` CSS class and an inline `background` gradient for the fill. Track: accent green. Thumb: gold.
+- Each **topic card** (`TopicCard` component) contains: question in Cormorant Garamond italic, difficulty badge, and either a summary view (completed) or slider rows (not yet rated).
+- Optional `progressText` prop (e.g. `"Topic 3 of 7"`) renders below the question in `text-[11px] text-muted-foreground`; passed only in mobile carousel, not on desktop.
+- Sliders use native `<input type="range">` with the `rating-slider` CSS class and an inline `background` gradient for the fill. Track: accent green. Thumb: gold. Gap between him/her slider rows: `space-y-6` on mobile (24px), `md:space-y-4` on desktop (16px).
 - On load, sliders are pre-populated from the most-recent rating per person per topic (ratings fetched sorted `rated_at DESC`; first `.find()` per person = most recent).
 - Empty state when DB is not seeded: centred `✦` with a note to run `/api/seed`.
 
