@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -30,13 +31,10 @@ type TopicState = {
   herNote: string
   saving: boolean
   lastSavedAt: string | null
-  // Completion tracking
   completed: boolean
   himRatingId: string | null
   herRatingId: string | null
-  // Revisit mode
   revisiting: boolean
-  // Snapshot used to revert on Cancel
   savedHimScore: number
   savedHerScore: number
   savedHimNote: string
@@ -50,6 +48,17 @@ const DIFFICULTY_META = {
   2: { label: "Medium", color: "#c9a96e" },
   3: { label: "Hard",   color: "#c47a6a" },
 } as const
+
+const DEFAULT_TOPIC_STATE: TopicState = {
+  himScore: 5, herScore: 5,
+  himNote: "", herNote: "",
+  saving: false, lastSavedAt: null,
+  completed: false,
+  himRatingId: null, herRatingId: null,
+  revisiting: false,
+  savedHimScore: 5, savedHerScore: 5,
+  savedHimNote: "", savedHerNote: "",
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +124,7 @@ function TopicCard({
   onUpdate,
   onSave,
   onCancel,
+  progressText,
 }: {
   topic: TopicRow
   state: TopicState
@@ -123,6 +133,7 @@ function TopicCard({
   onUpdate: (patch: Partial<TopicState>) => void
   onSave: () => void
   onCancel: () => void
+  progressText?: string
 }) {
   const { label, color } = DIFFICULTY_META[topic.difficulty]
   const showSummary = state.completed && !state.revisiting
@@ -130,33 +141,40 @@ function TopicCard({
   return (
     <div className="glass-card rounded-2xl p-5 md:p-6">
       {/* Question + difficulty badge */}
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div className="flex items-start gap-2 flex-1 min-w-0">
-          {state.completed && (
-            <span
-              className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 block"
-              style={{ background: "#8aab7a" }}
-            />
-          )}
-          <p
-            className={`font-heading italic text-xl md:text-[1.4rem] leading-snug ${
-              state.completed ? "text-foreground/60" : "text-foreground"
-            }`}
+      <div className="mb-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {state.completed && (
+              <span
+                className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 block"
+                style={{ background: "#8aab7a" }}
+              />
+            )}
+            <p
+              className={`font-heading italic text-xl md:text-[1.4rem] leading-snug ${
+                state.completed ? "text-foreground/60" : "text-foreground"
+              }`}
+            >
+              {topic.question}
+            </p>
+          </div>
+          <span
+            className="shrink-0 text-[9px] font-semibold tracking-widest uppercase
+                       px-2.5 py-1 rounded-full mt-0.5 border whitespace-nowrap"
+            style={{
+              color,
+              borderColor: `${color}40`,
+              background: `${color}14`,
+            }}
           >
-            {topic.question}
-          </p>
+            {label}
+          </span>
         </div>
-        <span
-          className="shrink-0 text-[9px] font-semibold tracking-widest uppercase
-                     px-2.5 py-1 rounded-full mt-0.5 border whitespace-nowrap"
-          style={{
-            color,
-            borderColor: `${color}40`,
-            background: `${color}14`,
-          }}
-        >
-          {label}
-        </span>
+        {progressText && (
+          <p className="text-[11px] text-muted-foreground mt-2 tabular-nums">
+            {progressText}
+          </p>
+        )}
       </div>
 
       {/* ── Summary view (completed & not revisiting) ───────────────────────── */}
@@ -168,7 +186,6 @@ function TopicCard({
         }}
       >
         <div className="space-y-4 pb-1">
-          {/* Score pair */}
           <div className="flex items-center gap-5">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xs text-muted-foreground">{nameHim}</span>
@@ -185,7 +202,6 @@ function TopicCard({
             </div>
           </div>
 
-          {/* Notes (if any) */}
           {(state.savedHimNote || state.savedHerNote) && (
             <div className="space-y-1.5">
               {state.savedHimNote && (
@@ -207,14 +223,12 @@ function TopicCard({
             </div>
           )}
 
-          {/* Last discussed date */}
           {state.lastSavedAt && (
             <p className="text-xs text-muted-foreground/70">
               Last discussed {format(new Date(state.lastSavedAt), "d MMMM yyyy")}
             </p>
           )}
 
-          {/* Revisit button */}
           <button
             onClick={() => onUpdate({ revisiting: true })}
             className="w-full min-h-12 px-5 py-3 rounded-xl text-sm text-accent
@@ -234,8 +248,8 @@ function TopicCard({
         }}
       >
         <div>
-          {/* Sliders */}
-          <div className="space-y-4 mb-5">
+          {/* 24px gap on mobile, 16px on desktop */}
+          <div className="space-y-6 md:space-y-4 mb-5">
             <SliderRow
               label={nameHim}
               value={state.himScore}
@@ -252,7 +266,6 @@ function TopicCard({
             />
           </div>
 
-          {/* Save row */}
           <div className="flex items-center gap-4 pt-1">
             <button
               onClick={onSave}
@@ -314,6 +327,7 @@ export function ConversationsClient() {
   const [nameHer, setNameHer] = useState("Her")
   const [topicStates, setTopicStates] = useState<Record<string, TopicState>>({})
   const [loading, setLoading] = useState(true)
+  const [mobileTopicIndex, setMobileTopicIndex] = useState(0)
 
   const themeParam = searchParams.get("theme")
   const activeThemeId = themeParam ?? themes[0]?.id ?? ""
@@ -350,7 +364,6 @@ export function ConversationsClient() {
       setNameHim(settingsData.find(s => s.key === "name_him")?.value ?? "Him")
       setNameHer(settingsData.find(s => s.key === "name_her")?.value ?? "Her")
 
-      // Build topic state — ratingsData sorted desc by rated_at, first match = most recent
       const stateMap: Record<string, TopicState> = {}
       for (const topic of topicsData) {
         const tr = ratingsData.filter(r => r.topic_id === topic.id)
@@ -362,20 +375,15 @@ export function ConversationsClient() {
         const himNote = him?.note ?? ""
         const herNote = her?.note ?? ""
         stateMap[topic.id] = {
-          himScore,
-          herScore,
-          himNote,
-          herNote,
+          himScore, herScore, himNote, herNote,
           saving: false,
           lastSavedAt: tr[0]?.rated_at ?? null,
           completed,
           himRatingId: him?.id ?? null,
           herRatingId: her?.id ?? null,
           revisiting: false,
-          savedHimScore: himScore,
-          savedHerScore: herScore,
-          savedHimNote: himNote,
-          savedHerNote: herNote,
+          savedHimScore: himScore, savedHerScore: herScore,
+          savedHimNote: himNote, savedHerNote: herNote,
         }
       }
       setTopicStates(stateMap)
@@ -394,6 +402,11 @@ export function ConversationsClient() {
       router.replace(`/conversations?theme=${themes[0].id}`)
     }
   }, [themes, themeParam]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset mobile index when active theme changes
+  useEffect(() => {
+    setMobileTopicIndex(0)
+  }, [activeThemeId])
 
   // ─── Derived ────────────────────────────────────────────────────────────────
 
@@ -430,6 +443,14 @@ export function ConversationsClient() {
     })
   }
 
+  function mobileNavPrev() {
+    setMobileTopicIndex(i => Math.max(0, i - 1))
+  }
+
+  function mobileNavNext() {
+    setMobileTopicIndex(i => Math.min(activeTopics.length - 1, i + 1))
+  }
+
   async function saveTopic(topicId: string) {
     const s = topicStates[topicId]
     if (!s || s.saving) return
@@ -438,7 +459,6 @@ export function ConversationsClient() {
     const now = new Date().toISOString()
 
     if (s.completed && s.himRatingId && s.herRatingId) {
-      // Revisit: update existing rating rows in place
       const [r1, r2] = await Promise.all([
         supabase
           .from("ratings")
@@ -464,7 +484,6 @@ export function ConversationsClient() {
         })
       }
     } else {
-      // First-time save: insert new rows and capture their IDs
       const { data, error } = await supabase
         .from("ratings")
         .insert([
@@ -496,10 +515,12 @@ export function ConversationsClient() {
 
   if (loading) return <LoadingSkeleton />
 
+  const mobileTopic = activeTopics[mobileTopicIndex] ?? null
+
   return (
     <div className="flex flex-col md:flex-row md:h-dvh md:overflow-hidden">
 
-      {/* ── Left: theme list (desktop only) ─────────────────────────────── */}
+      {/* ── Desktop: theme sidebar ───────────────────────────────────────── */}
       <aside
         className="hidden md:flex flex-col w-55 glass-nav border-r border-border/50
                    shrink-0 overflow-y-auto py-6 px-3"
@@ -533,7 +554,7 @@ export function ConversationsClient() {
       {/* ── Right: topics area ───────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col md:overflow-hidden">
 
-        {/* Mobile: horizontal theme tabs */}
+        {/* Mobile: horizontal theme pill tabs */}
         <div
           className="md:hidden flex gap-2 overflow-x-auto scrollbar-none px-4 py-3
                      glass-nav border-b border-border/50 shrink-0 sticky top-0 z-10"
@@ -559,17 +580,74 @@ export function ConversationsClient() {
           })}
         </div>
 
-        {/* Scrollable topic list */}
-        <div className="md:flex-1 md:overflow-y-auto px-4 md:px-10 py-6 md:py-10">
+        {/* ── Mobile: single-card carousel ─────────────────────────────── */}
+        <div className="md:hidden pb-20 pt-[25vh]">
+          {activeTopics.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-center px-6">
+              <p className="text-gold/40 text-3xl" aria-hidden="true">✦</p>
+              <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
+                No conversations yet. Make sure the database has been seeded by hitting{" "}
+                <code className="text-accent/80 text-xs">/api/seed</code>.
+              </p>
+            </div>
+          ) : mobileTopic ? (
+            <div className="px-3">
+              {/* Arrows flanking the card */}
+              <div className="flex items-start gap-2">
 
-          {/* Theme header */}
+                {/* Previous */}
+                <button
+                  onClick={mobileNavPrev}
+                  disabled={mobileTopicIndex === 0}
+                  aria-label="Previous topic"
+                  className="mt-3 w-12 h-12 shrink-0 flex items-center justify-center
+                             rounded-xl glass-button text-muted-foreground
+                             hover:text-foreground transition-colors duration-150
+                             disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+
+                {/* Card */}
+                <div className="flex-1 min-w-0">
+                  <TopicCard
+                    topic={mobileTopic}
+                    state={topicStates[mobileTopic.id] ?? DEFAULT_TOPIC_STATE}
+                    nameHim={nameHim}
+                    nameHer={nameHer}
+                    onUpdate={patch => patchTopic(mobileTopic.id, patch)}
+                    onSave={() => saveTopic(mobileTopic.id)}
+                    onCancel={() => cancelRevisit(mobileTopic.id)}
+                    progressText={`Topic ${mobileTopicIndex + 1} of ${activeTopics.length}`}
+                  />
+                </div>
+
+                {/* Next */}
+                <button
+                  onClick={mobileNavNext}
+                  disabled={mobileTopicIndex >= activeTopics.length - 1}
+                  aria-label="Next topic"
+                  className="mt-3 w-12 h-12 shrink-0 flex items-center justify-center
+                             rounded-xl glass-button text-muted-foreground
+                             hover:text-foreground transition-colors duration-150
+                             disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight size={20} />
+                </button>
+
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* ── Desktop: scrollable topic list ───────────────────────────── */}
+        <div className="hidden md:block md:flex-1 md:overflow-y-auto md:px-10 md:py-10">
+
           {activeTheme && (
-            <header className="mb-8 md:mb-10">
+            <header className="mb-10">
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl md:text-3xl" aria-hidden="true">
-                  {activeTheme.icon}
-                </span>
-                <h1 className="font-heading italic text-3xl md:text-[2.25rem] text-foreground leading-tight">
+                <span className="text-3xl" aria-hidden="true">{activeTheme.icon}</span>
+                <h1 className="font-heading italic text-[2.25rem] text-foreground leading-tight">
                   {activeTheme.name}
                 </h1>
               </div>
@@ -579,7 +657,6 @@ export function ConversationsClient() {
             </header>
           )}
 
-          {/* Empty state — DB not seeded */}
           {themes.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
               <p className="text-gold/40 text-3xl" aria-hidden="true">✦</p>
@@ -590,67 +667,42 @@ export function ConversationsClient() {
             </div>
           )}
 
-          {/* Difficulty sections */}
           {([1, 2, 3] as const).map(diff => {
             const items = grouped[diff]
             if (items.length === 0) return null
             const { label, color } = DIFFICULTY_META[diff]
             return (
               <section key={diff} className="mb-10 last:mb-6">
-                {/* Section divider */}
                 <div className="flex items-center gap-3 mb-5">
-                  <div
-                    className="h-px flex-1 rounded-full"
-                    style={{ background: `${color}1a` }}
-                  />
+                  <div className="h-px flex-1 rounded-full" style={{ background: `${color}1a` }} />
                   <span
                     className="text-[10px] font-semibold tracking-[0.15em] uppercase"
                     style={{ color }}
                   >
                     {label}
                   </span>
-                  <div
-                    className="h-px flex-1 rounded-full"
-                    style={{ background: `${color}1a` }}
-                  />
+                  <div className="h-px flex-1 rounded-full" style={{ background: `${color}1a` }} />
                 </div>
 
                 <div className="flex flex-col gap-4">
-                  {items.map(topic => {
-                    const state = topicStates[topic.id] ?? {
-                      himScore: 5,
-                      herScore: 5,
-                      himNote: "",
-                      herNote: "",
-                      saving: false,
-                      lastSavedAt: null,
-                      completed: false,
-                      himRatingId: null,
-                      herRatingId: null,
-                      revisiting: false,
-                      savedHimScore: 5,
-                      savedHerScore: 5,
-                      savedHimNote: "",
-                      savedHerNote: "",
-                    }
-                    return (
-                      <TopicCard
-                        key={topic.id}
-                        topic={topic}
-                        state={state}
-                        nameHim={nameHim}
-                        nameHer={nameHer}
-                        onUpdate={patch => patchTopic(topic.id, patch)}
-                        onSave={() => saveTopic(topic.id)}
-                        onCancel={() => cancelRevisit(topic.id)}
-                      />
-                    )
-                  })}
+                  {items.map(topic => (
+                    <TopicCard
+                      key={topic.id}
+                      topic={topic}
+                      state={topicStates[topic.id] ?? DEFAULT_TOPIC_STATE}
+                      nameHim={nameHim}
+                      nameHer={nameHer}
+                      onUpdate={patch => patchTopic(topic.id, patch)}
+                      onSave={() => saveTopic(topic.id)}
+                      onCancel={() => cancelRevisit(topic.id)}
+                    />
+                  ))}
                 </div>
               </section>
             )
           })}
         </div>
+
       </div>
     </div>
   )
