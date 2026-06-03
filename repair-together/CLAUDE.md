@@ -64,8 +64,10 @@ repair-together/
 │   │   ├── seed/route.ts              POST   /api/seed           — seeds DB if empty (idempotent)
 │   │   └── topics/
 │   │       ├── route.ts               POST   /api/topics         — create a new topic
-│   │       └── [id]/route.ts          PATCH  /api/topics/[id]    — update topic fields
-│   │                                  DELETE /api/topics/[id]    — delete topic + its ratings
+│   │       └── [id]/
+│   │           ├── route.ts           PATCH  /api/topics/[id]    — update topic fields
+│   │           │                      DELETE /api/topics/[id]    — delete topic + its ratings
+│   │           └── ratings/route.ts   DELETE /api/topics/[id]/ratings — clear ratings only
 │   ├── conversations/
 │   │   ├── ConversationsClient.tsx    "use client" — full conversations UI + topic CRUD
 │   │   ├── loading.tsx                Skeleton loading state
@@ -92,7 +94,8 @@ repair-together/
 │   │   └── Sidebar.tsx                "use client" — desktop sidebar (220px fixed)
 │   ├── topics/
 │   │   ├── TopicFormSheet.tsx         "use client" — bottom sheet for adding or editing a topic
-│   │   └── DeleteConfirmSheet.tsx     "use client" — bottom sheet for delete confirmation
+│   │   ├── DeleteConfirmSheet.tsx     "use client" — bottom sheet for delete confirmation
+│   │   └── ResetTopicSheet.tsx        "use client" — bottom sheet for reset-scores confirmation
 │   ├── ui/                            shadcn components
 │   │   ├── button.tsx
 │   │   ├── card.tsx
@@ -345,14 +348,17 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 **Error handling:** `load()` is wrapped in `try/catch`; `setLoading(false)` is always reached.
 
 **Topic CRUD (inline management):**
-- Each topic card has a `···` three-dot button (top-right, `aria-label="Topic options"`) that opens an inline floating action menu with "Edit topic" and "Remove topic" options.
+- Each topic card has a `···` three-dot button (top-right, `aria-label="Topic options"`) that opens an inline floating action menu with three options: "Edit topic", "Reset conversation", and "Remove topic".
 - The inline menu is `position: absolute` anchored to the three-dot button. It closes on outside click (document-level listener), on scroll (scroll listener on the `topicListRef` container), and when the three-dot button is tapped again.
+- Menu item colour hierarchy: "Edit topic" uses `text-foreground`; "Reset conversation" uses `rgba(196,122,106,0.75)` (muted rose — destructive-ish but less severe); "Remove topic" uses `#c47a6a` (full destructive rose).
 - A full-width dashed-border "+ Add a topic" button appears at the bottom of each theme's topic list.
-- Tapping "Edit topic" or "+ Add a topic" mounts `TopicFormSheet`; tapping "Remove topic" mounts `DeleteConfirmSheet`. Only one sheet is open at a time.
-- After a successful add/edit/delete the local `topics` array and `topicStates` map are updated in place — no page refetch.
+- Tapping "Edit topic" or "+ Add a topic" mounts `TopicFormSheet`; "Remove topic" mounts `DeleteConfirmSheet`; "Reset conversation" mounts `ResetTopicSheet`. Only one sheet is open at a time.
+- After a successful add/edit/delete/reset the local `topics` array and `topicStates` map are updated in place — no page refetch.
 - After add: the new topic is appended and scrolled into view (`document.getElementById(...).scrollIntoView`).
-- After delete: the topic is removed. A `defaultTopicState()` helper initialises fresh `TopicState` for newly added topics.
-- A `Toast` component (inlined in `ConversationsClient.tsx`) shows "Topic added", "Topic updated", or "Topic removed" for 2.5 s at `bottom: 88px` (above the bottom nav), with a 300 ms fade-out. It is positioned `fixed`, `z-50`, `pointer-events-none`.
+- After delete: the topic is removed from `topics` and its key is deleted from `topicStates`.
+- After reset: the topic's `TopicState` is replaced with `defaultTopicState()`, reverting the card to the unrated slider view.
+- A `defaultTopicState()` helper returns a fresh zeroed `TopicState` — used for newly added topics and after a reset.
+- A `Toast` component (inlined in `ConversationsClient.tsx`) shows "Topic added", "Topic updated", "Topic removed", or "Conversation reset" for 2.5 s at `bottom: 88px` (above the bottom nav), with a 300 ms fade-out. It is positioned `fixed`, `z-50`, `pointer-events-none`.
 - Body scroll is locked while any sheet is open (`document.body.style.overflow = "hidden"` in a `useEffect`, cleaned up on unmount).
 
 ---
@@ -399,6 +405,7 @@ Full `"use client"` page. Loads settings on mount via `try/catch/finally`.
 | `/api/topics` | POST | Creates a new topic. Body: `{ theme_id, question, difficulty: 1\|2\|3 }`. Sets `sort_order` to max+1 for that theme. Returns the created row (201). |
 | `/api/topics/[id]` | PATCH | Updates a topic. Body: `{ question?, difficulty? }`. Returns updated row. 404 if not found. |
 | `/api/topics/[id]` | DELETE | Deletes a topic and all its ratings (explicit cascade). Returns `{ success: true }`. 404 if not found. |
+| `/api/topics/[id]/ratings` | DELETE | Deletes all ratings for a topic without touching the topic row itself. Returns `{ success: true, deleted: N }`. 404 if topic not found. |
 
 All topic routes follow the same error pattern as `/api/seed`: `try/catch` returning `{ error: message }` with status 500 on failure. Use `.maybeSingle()` (not `.single()`) when checking existence by ID — returns `null` rather than throwing when no row is found.
 
@@ -413,10 +420,15 @@ Two reusable bottom sheet components follow a shared pattern:
 - `onSave` is called with the API response once the save succeeds; `onClose` is called after the exit animation completes (260 ms after `onSave`).
 - Calls `POST /api/topics` (add) or `PATCH /api/topics/[id]` (edit) internally.
 
-**`DeleteConfirmSheet`** — confirm before deleting.
+**`DeleteConfirmSheet`** — confirm before deleting a topic entirely.
 - Props: `topicQuestion`, `onConfirm`, `onCancel`.
-- `onConfirm` is called synchronously when the user taps "Remove". The parent handles the async `DELETE` call and unmounts the sheet (by nulling state) when done. The sheet shows a spinner until unmounted.
-- Calls `DELETE /api/topics/[id]` in the parent (`ConversationsClient`), not inside the sheet.
+- `onConfirm` is called synchronously when the user taps "Remove". The parent handles the async `DELETE /api/topics/[id]` call and unmounts the sheet (by nulling state) when done. The sheet shows a spinner until unmounted.
+
+**`ResetTopicSheet`** — confirm before clearing a topic's scores.
+- Props: `topicQuestion`, `onConfirm`, `onCancel`.
+- Same `onConfirm` pattern as `DeleteConfirmSheet`: called synchronously, parent handles the async `DELETE /api/topics/[id]/ratings` call, sheet stays mounted (showing spinner) until parent nulls `resetTopic` state.
+- After a successful reset the parent replaces the topic's `TopicState` with `defaultTopicState()`, reverting the card to a fresh unrated slider view with no page reload.
+- Buttons: "Reset scores" (destructive rose style) / "Keep scores" (ghost). Includes an explanatory subline: "This will remove all scores and notes for this topic. The topic itself won't be deleted."
 
 **Shared bottom sheet pattern:**
 - Animate in/out: `transform: translateY(100% → 0)` with `transition: 250ms ease-out`. Trigger via a `visible` state set with `requestAnimationFrame` on mount, cleared 260 ms before calling `onClose`.
