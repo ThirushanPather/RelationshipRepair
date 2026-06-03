@@ -97,7 +97,9 @@ export function TopicFormSheet({ mode, topic, themeId, themes, onSave, onClose }
       <div
         className="absolute inset-0"
         style={{
-          background: "rgba(0,0,0,0.55)",
+          background: "rgba(0,0,0,0.6)",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
           transition: "opacity 250ms ease-out",
           opacity: visible ? 1 : 0,
         }}
@@ -111,6 +113,9 @@ export function TopicFormSheet({ mode, topic, themeId, themes, onSave, onClose }
           maxHeight: "85dvh",
           transition: "transform 250ms ease-out",
           transform: visible ? "translateY(0)" : "translateY(100%)",
+          background: "color-mix(in srgb, var(--color-surface) 92%, transparent)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
         }}
       >
         {/* Drag handle */}

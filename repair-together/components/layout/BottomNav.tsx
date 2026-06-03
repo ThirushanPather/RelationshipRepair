@@ -9,9 +9,14 @@ export function BottomNav() {
 
   return (
     <nav
-      className="glass-nav md:hidden fixed bottom-0 left-0 right-0 z-40
-                 border-t border-t-[rgba(138,171,122,0.12)]
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40
+                 border-t border-border
                  flex items-stretch"
+      style={{
+        background: "color-mix(in srgb, var(--color-surface) 88%, transparent)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+      }}
     >
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href)
