@@ -30,6 +30,17 @@ type TopicState = {
   herNote: string
   saving: boolean
   lastSavedAt: string | null
+  // Completion tracking
+  completed: boolean
+  himRatingId: string | null
+  herRatingId: string | null
+  // Revisit mode
+  revisiting: boolean
+  // Snapshot used to revert on Cancel
+  savedHimScore: number
+  savedHerScore: number
+  savedHimNote: string
+  savedHerNote: string
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -103,6 +114,7 @@ function TopicCard({
   nameHer,
   onUpdate,
   onSave,
+  onCancel,
 }: {
   topic: TopicRow
   state: TopicState
@@ -110,16 +122,30 @@ function TopicCard({
   nameHer: string
   onUpdate: (patch: Partial<TopicState>) => void
   onSave: () => void
+  onCancel: () => void
 }) {
   const { label, color } = DIFFICULTY_META[topic.difficulty]
+  const showSummary = state.completed && !state.revisiting
 
   return (
     <div className="glass-card rounded-2xl p-5 md:p-6">
       {/* Question + difficulty badge */}
       <div className="flex items-start justify-between gap-4 mb-6">
-        <p className="font-heading italic text-xl md:text-[1.4rem] text-foreground leading-snug flex-1">
-          {topic.question}
-        </p>
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          {state.completed && (
+            <span
+              className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 block"
+              style={{ background: "#8aab7a" }}
+            />
+          )}
+          <p
+            className={`font-heading italic text-xl md:text-[1.4rem] leading-snug ${
+              state.completed ? "text-foreground/60" : "text-foreground"
+            }`}
+          >
+            {topic.question}
+          </p>
+        </div>
         <span
           className="shrink-0 text-[9px] font-semibold tracking-widest uppercase
                      px-2.5 py-1 rounded-full mt-0.5 border whitespace-nowrap"
@@ -133,42 +159,123 @@ function TopicCard({
         </span>
       </div>
 
-      {/* Sliders */}
-      <div className="space-y-4 mb-5">
-        <SliderRow
-          label={nameHim}
-          value={state.himScore}
-          note={state.himNote}
-          onValueChange={v => onUpdate({ himScore: v })}
-          onNoteChange={n => onUpdate({ himNote: n })}
-        />
-        <SliderRow
-          label={nameHer}
-          value={state.herScore}
-          note={state.herNote}
-          onValueChange={v => onUpdate({ herScore: v })}
-          onNoteChange={n => onUpdate({ herNote: n })}
-        />
+      {/* ── Summary view (completed & not revisiting) ───────────────────────── */}
+      <div
+        className="overflow-hidden transition-all duration-200"
+        style={{
+          maxHeight: showSummary ? "320px" : "0px",
+          opacity: showSummary ? 1 : 0,
+        }}
+      >
+        <div className="space-y-4 pb-1">
+          {/* Score pair */}
+          <div className="flex items-center gap-5">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xs text-muted-foreground">{nameHim}</span>
+              <span className="text-xl font-semibold text-accent tabular-nums">
+                {state.savedHimScore}
+              </span>
+            </div>
+            <div className="w-px h-4 bg-border/50" />
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xs text-muted-foreground">{nameHer}</span>
+              <span className="text-xl font-semibold text-gold tabular-nums">
+                {state.savedHerScore}
+              </span>
+            </div>
+          </div>
+
+          {/* Notes (if any) */}
+          {(state.savedHimNote || state.savedHerNote) && (
+            <div className="space-y-1.5">
+              {state.savedHimNote && (
+                <p className="text-sm italic text-muted-foreground leading-snug">
+                  <span className="not-italic text-[11px] text-muted-foreground/60 uppercase tracking-wide mr-1">
+                    {nameHim}:
+                  </span>
+                  {state.savedHimNote}
+                </p>
+              )}
+              {state.savedHerNote && (
+                <p className="text-sm italic text-muted-foreground leading-snug">
+                  <span className="not-italic text-[11px] text-muted-foreground/60 uppercase tracking-wide mr-1">
+                    {nameHer}:
+                  </span>
+                  {state.savedHerNote}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Last discussed date */}
+          {state.lastSavedAt && (
+            <p className="text-xs text-muted-foreground/70">
+              Last discussed {format(new Date(state.lastSavedAt), "d MMMM yyyy")}
+            </p>
+          )}
+
+          {/* Revisit button */}
+          <button
+            onClick={() => onUpdate({ revisiting: true })}
+            className="w-full min-h-12 px-5 py-3 rounded-xl text-sm text-accent
+                       glass-button hover:bg-accent/25 transition-colors duration-200"
+          >
+            Revisit this conversation
+          </button>
+        </div>
       </div>
 
-      {/* Save row */}
-      <div className="flex items-center justify-between pt-1">
-        <button
-          onClick={onSave}
-          disabled={state.saving}
-          className="glass-button px-5 py-2 rounded-lg text-sm text-accent
-                     hover:bg-accent/25 transition-colors duration-200
-                     disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {state.saving ? "Saving…" : "Save"}
-        </button>
-
-        {state.lastSavedAt && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent/70 shrink-0 block" />
-            <span>Saved {format(new Date(state.lastSavedAt), "MMM d, yyyy")}</span>
+      {/* ── Edit view (not completed, or revisiting) ─────────────────────────── */}
+      <div
+        className="overflow-hidden transition-all duration-200"
+        style={{
+          maxHeight: !showSummary ? "480px" : "0px",
+          opacity: !showSummary ? 1 : 0,
+        }}
+      >
+        <div>
+          {/* Sliders */}
+          <div className="space-y-4 mb-5">
+            <SliderRow
+              label={nameHim}
+              value={state.himScore}
+              note={state.himNote}
+              onValueChange={v => onUpdate({ himScore: v })}
+              onNoteChange={n => onUpdate({ himNote: n })}
+            />
+            <SliderRow
+              label={nameHer}
+              value={state.herScore}
+              note={state.herNote}
+              onValueChange={v => onUpdate({ herScore: v })}
+              onNoteChange={n => onUpdate({ herNote: n })}
+            />
           </div>
-        )}
+
+          {/* Save row */}
+          <div className="flex items-center gap-4 pt-1">
+            <button
+              onClick={onSave}
+              disabled={state.saving}
+              className="glass-button px-5 py-2 rounded-lg text-sm text-accent
+                         hover:bg-accent/25 transition-colors duration-200
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {state.saving ? "Saving…" : state.revisiting ? "Update scores" : "Save"}
+            </button>
+            {state.revisiting && (
+              <button
+                onClick={onCancel}
+                disabled={state.saving}
+                className="min-h-11 px-2 text-xs text-muted-foreground
+                           hover:text-foreground transition-colors duration-150
+                           disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -179,7 +286,7 @@ function TopicCard({
 function LoadingSkeleton() {
   return (
     <div className="flex flex-col md:flex-row md:h-dvh md:overflow-hidden">
-      <aside className="hidden md:flex flex-col w-[220px] glass-nav border-r border-border/50 shrink-0 p-3 gap-1.5 pt-6">
+      <aside className="hidden md:flex flex-col w-55 glass-nav border-r border-border/50 shrink-0 p-3 gap-1.5 pt-6">
         <div className="h-3 w-16 rounded bg-white/10 animate-pulse mx-2 mb-3" />
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="h-10 rounded-lg bg-white/5 animate-pulse" />
@@ -243,20 +350,32 @@ export function ConversationsClient() {
       setNameHim(settingsData.find(s => s.key === "name_him")?.value ?? "Him")
       setNameHer(settingsData.find(s => s.key === "name_her")?.value ?? "Her")
 
-      // Build topic state from most-recent ratings per person per topic
-      // ratingsData is sorted desc by rated_at, so first match = most recent
+      // Build topic state — ratingsData sorted desc by rated_at, first match = most recent
       const stateMap: Record<string, TopicState> = {}
       for (const topic of topicsData) {
         const tr = ratingsData.filter(r => r.topic_id === topic.id)
         const him = tr.find(r => r.person === "him")
         const her = tr.find(r => r.person === "her")
+        const completed = !!(him && her)
+        const himScore = him?.score ?? 5
+        const herScore = her?.score ?? 5
+        const himNote = him?.note ?? ""
+        const herNote = her?.note ?? ""
         stateMap[topic.id] = {
-          himScore: him?.score ?? 5,
-          herScore: her?.score ?? 5,
-          himNote: him?.note ?? "",
-          herNote: her?.note ?? "",
+          himScore,
+          herScore,
+          himNote,
+          herNote,
           saving: false,
           lastSavedAt: tr[0]?.rated_at ?? null,
+          completed,
+          himRatingId: him?.id ?? null,
+          herRatingId: her?.id ?? null,
+          revisiting: false,
+          savedHimScore: himScore,
+          savedHerScore: herScore,
+          savedHimNote: himNote,
+          savedHerNote: herNote,
         }
       }
       setTopicStates(stateMap)
@@ -299,33 +418,78 @@ export function ConversationsClient() {
     }))
   }
 
+  function cancelRevisit(topicId: string) {
+    const s = topicStates[topicId]
+    if (!s) return
+    patchTopic(topicId, {
+      revisiting: false,
+      himScore: s.savedHimScore,
+      herScore: s.savedHerScore,
+      himNote: s.savedHimNote,
+      herNote: s.savedHerNote,
+    })
+  }
+
   async function saveTopic(topicId: string) {
     const s = topicStates[topicId]
     if (!s || s.saving) return
     patchTopic(topicId, { saving: true })
 
     const now = new Date().toISOString()
-    const { error } = await supabase.from("ratings").insert([
-      {
-        topic_id: topicId,
-        person: "him",
-        score: s.himScore,
-        note: s.himNote || null,
-        rated_at: now,
-      },
-      {
-        topic_id: topicId,
-        person: "her",
-        score: s.herScore,
-        note: s.herNote || null,
-        rated_at: now,
-      },
-    ])
 
-    patchTopic(topicId, {
-      saving: false,
-      lastSavedAt: error ? s.lastSavedAt : now,
-    })
+    if (s.completed && s.himRatingId && s.herRatingId) {
+      // Revisit: update existing rating rows in place
+      const [r1, r2] = await Promise.all([
+        supabase
+          .from("ratings")
+          .update({ score: s.himScore, note: s.himNote || null, rated_at: now })
+          .eq("id", s.himRatingId),
+        supabase
+          .from("ratings")
+          .update({ score: s.herScore, note: s.herNote || null, rated_at: now })
+          .eq("id", s.herRatingId),
+      ])
+      const error = r1.error ?? r2.error
+      if (error) {
+        patchTopic(topicId, { saving: false })
+      } else {
+        patchTopic(topicId, {
+          saving: false,
+          lastSavedAt: now,
+          revisiting: false,
+          savedHimScore: s.himScore,
+          savedHerScore: s.herScore,
+          savedHimNote: s.himNote,
+          savedHerNote: s.herNote,
+        })
+      }
+    } else {
+      // First-time save: insert new rows and capture their IDs
+      const { data, error } = await supabase
+        .from("ratings")
+        .insert([
+          { topic_id: topicId, person: "him", score: s.himScore, note: s.himNote || null, rated_at: now },
+          { topic_id: topicId, person: "her", score: s.herScore, note: s.herNote || null, rated_at: now },
+        ])
+        .select("id,person")
+
+      if (error || !data) {
+        patchTopic(topicId, { saving: false })
+      } else {
+        const rows = data as { id: string; person: string }[]
+        patchTopic(topicId, {
+          saving: false,
+          lastSavedAt: now,
+          completed: true,
+          himRatingId: rows.find(r => r.person === "him")?.id ?? null,
+          herRatingId: rows.find(r => r.person === "her")?.id ?? null,
+          savedHimScore: s.himScore,
+          savedHerScore: s.herScore,
+          savedHimNote: s.himNote,
+          savedHerNote: s.herNote,
+        })
+      }
+    }
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -460,6 +624,14 @@ export function ConversationsClient() {
                       herNote: "",
                       saving: false,
                       lastSavedAt: null,
+                      completed: false,
+                      himRatingId: null,
+                      herRatingId: null,
+                      revisiting: false,
+                      savedHimScore: 5,
+                      savedHerScore: 5,
+                      savedHimNote: "",
+                      savedHerNote: "",
                     }
                     return (
                       <TopicCard
@@ -470,6 +642,7 @@ export function ConversationsClient() {
                         nameHer={nameHer}
                         onUpdate={patch => patchTopic(topic.id, patch)}
                         onSave={() => saveTopic(topic.id)}
+                        onCancel={() => cancelRevisit(topic.id)}
                       />
                     )
                   })}

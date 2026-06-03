@@ -8,7 +8,7 @@ This file documents the current state of the project for Claude Code. Read this 
 
 **Us, Intentionally** is a private relationship-repair web app for two people. It guides them through structured conversation topics organised by theme (e.g. Communication, Being Chosen, Physical Intimacy), lets each person rate how they feel about each topic on a 1–10 slider, adds optional notes, and surfaces a progress/analytics view over time.
 
-The app is personal and intimate — not a product, not multi-tenant. There are exactly two users: "him" and "her" (display names configurable in settings via the `settings` table).
+The app is personal and intimate — not a product, not multi-tenant. There are exactly two users: "him" and "her" (display names configurable in settings via the `settings` table). There is no authentication — the app is accessed directly.
 
 ---
 
@@ -17,7 +17,7 @@ The app is personal and intimate — not a product, not multi-tenant. There are 
 ```bash
 cd repair-together
 npm install
-npm run dev        # starts at http://localhost:3000 (or 3001 if 3000 is in use)
+npm run dev        # starts at http://localhost:3000 (or 3001/3002 if ports are in use)
 npm run build      # production build
 npx tsc --noEmit   # type check only
 ```
@@ -27,6 +27,12 @@ The `.env.local` file is not committed. It must contain:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+```
+
+A template is at `.env.local.example`. After setting up env vars, seed the DB once:
+
+```bash
+curl -X POST http://localhost:3000/api/seed
 ```
 
 ---
@@ -40,9 +46,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 | Styling | Tailwind CSS v4 + tw-animate-css | Config lives in CSS (`@theme`), NOT in `tailwind.config.ts` |
 | Components | shadcn/ui (v4 flavour) | Uses `@base-ui/react` primitives, not Radix |
 | Database | Supabase (PostgreSQL) | Client-only via `@supabase/supabase-js` |
-| Charts | Recharts 3 | For the Progress page (not yet built) |
+| Charts | Recharts 3 | Used in `/progress` via `next/dynamic` with `ssr: false` |
 | Date utils | date-fns 4 | For formatting `rated_at` timestamps |
-| Icons | lucide-react 1.17 | Used in nav components |
+| Icons | lucide-react 1.17 | Used in nav and settings components |
 | Fonts | Google Fonts via `next/font` | Cormorant Garamond (headings) + DM Sans (body) |
 | PostCSS | `@tailwindcss/postcss` | v4 plugin — NOT the old `tailwindcss` plugin |
 
@@ -54,39 +60,53 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 repair-together/
 ├── app/
 │   ├── api/
-│   │   └── seed/route.ts       POST /api/seed — seeds DB if empty
+│   │   ├── health/route.ts            GET  /api/health — deployment health check
+│   │   └── seed/route.ts              POST /api/seed   — seeds DB if empty (idempotent)
 │   ├── conversations/
-│   │   └── page.tsx            Placeholder
+│   │   ├── ConversationsClient.tsx    "use client" — full conversations UI
+│   │   ├── loading.tsx                Skeleton loading state
+│   │   └── page.tsx                   Suspense wrapper → ConversationsClient
 │   ├── progress/
-│   │   └── page.tsx            Placeholder
+│   │   ├── ProgressCharts.tsx         "use client" — Recharts line + bar charts
+│   │   ├── loading.tsx                Skeleton loading state
+│   │   └── page.tsx                   Server component — all data + page render
 │   ├── settings/
-│   │   └── page.tsx            Placeholder
-│   ├── globals.css             Design system (colours, glass utilities, gradient mesh)
-│   ├── layout.tsx              Root layout — loads fonts, wraps in AppShell
-│   ├── loading.tsx             Skeleton loading state for home page
-│   └── page.tsx                Home page — welcome header, theme grid, recent activity
+│   │   ├── loading.tsx                Skeleton loading state
+│   │   └── page.tsx                   "use client" — name customisation, appearance placeholder
+│   ├── globals.css                    Design system (colours, glass utilities, gradient mesh)
+│   ├── layout.tsx                     Root layout — fonts, manifest, AppShell
+│   ├── loading.tsx                    Skeleton loading state for home page
+│   └── page.tsx                       Home page — welcome header, theme grid, recent activity
 │
 ├── components/
 │   ├── layout/
-│   │   ├── AppShell.tsx        Server component — composes Sidebar + main + BottomNav
-│   │   ├── BottomNav.tsx       "use client" — mobile bottom nav bar
-│   │   ├── nav-config.ts       Shared nav items array (single source of truth)
-│   │   └── Sidebar.tsx         "use client" — desktop sidebar (220px fixed)
-│   └── ui/                     shadcn components
+│   │   ├── AppShell.tsx               Server component — composes Sidebar + main + BottomNav
+│   │   ├── BottomNav.tsx              "use client" — mobile bottom nav bar
+│   │   ├── nav-config.ts              Shared nav items array (single source of truth)
+│   │   └── Sidebar.tsx                "use client" — desktop sidebar (220px fixed)
+│   └── ui/                            shadcn components
 │       ├── button.tsx
 │       ├── card.tsx
 │       ├── progress.tsx
 │       └── slider.tsx
 │
 ├── lib/
-│   ├── data.ts                 seedData() — inserts 6 themes + 41 topics + 2 settings rows
-│   ├── db.sql                  Run once in Supabase SQL editor to create schema + RLS
-│   ├── supabase.ts             Supabase client (single export: `supabase`)
-│   ├── supabase/client.ts      Re-exports from lib/supabase.ts (legacy path)
-│   └── utils.ts                shadcn cn() utility
+│   ├── data.ts                        seedData() — inserts 6 themes + 41 topics + 2 settings rows
+│   ├── db.sql                         Run once in Supabase SQL editor to create schema + RLS
+│   ├── supabase.ts                    Supabase client (single export: `supabase`)
+│   └── utils.ts                       shadcn cn() utility
 │
-└── types/
-    └── index.ts                Theme, Topic, Rating interfaces
+├── public/
+│   ├── android-chrome-192x192.png
+│   ├── android-chrome-512x512.png
+│   ├── apple-touch-icon.png
+│   └── site.webmanifest               PWA manifest — name, theme_color, icons
+│
+├── types/
+│   └── index.ts                       Theme, Topic, Rating interfaces
+│
+├── .env.local.example                 Template for required environment variables
+└── next.config.mjs                    poweredByHeader: false
 ```
 
 ---
@@ -163,29 +183,39 @@ Premium wellness / mindfulness app. Frosted matcha glass — organic, warm, inti
 | `--color-ring` | `#8aab7a` | Focus rings |
 | `--color-destructive` | `#e05252` | Errors / danger |
 
+Destructive/danger UI (e.g. delete buttons) uses `#c47a6a` — a warm rose-red — NOT `--color-destructive`. Inline: `color: "#c47a6a"`, `borderColor: "rgba(196,122,106,0.45)"`, `background: "rgba(196,122,106,0.10)"`.
+
 Accent soft (use inline): `rgba(138, 171, 122, 0.12)` = `bg-accent/12` in Tailwind.
 
 ### Typography
 - **Headings**: `font-heading` → Cormorant Garamond (loaded via `next/font/google`, variable `--font-cormorant`)
 - **Body**: `font-sans` → DM Sans (loaded via `next/font/google`, variable `--font-dm-sans`)
-- Heading italic: `className="font-heading italic"` — used for the app name and page titles
+- Heading italic: `className="font-heading italic"` — used for the app name and all page titles
 
 ### Glassmorphism utilities (Tailwind `@utility` classes)
 
 | Class | Use for |
 |---|---|
 | `glass-card` | Content cards, panels |
-| `glass-nav` | Sidebar, bottom nav |
-| `glass-input` | Form inputs |
+| `glass-nav` | Sidebar, bottom nav, conversations theme panel |
+| `glass-input` | Form inputs and text fields |
 | `glass-button` | Secondary / ghost action buttons |
 
 The gradient mesh background is a fixed `html::before` pseudo-element (`z-index: -1`) — glass elements blur against this rather than a flat colour.
+
+### Additional CSS classes (plain CSS, not Tailwind utilities)
+
+| Class | Use for |
+|---|---|
+| `rating-slider` | `<input type="range">` on the conversations page — accent green fill via inline gradient, gold thumb via `::webkit-slider-thumb` |
+| `scrollbar-none` | `@utility` — hides scrollbars on horizontally scrollable containers (mobile theme tabs, dropdown panels) |
 
 ### Tailwind v4 notes
 - **No `tailwind.config.ts` is used for theme config.** All design tokens live in `@theme {}` inside `app/globals.css`.
 - Custom utilities are defined with `@utility` (not `@layer utilities`).
 - The PostCSS plugin is `@tailwindcss/postcss`, not `tailwindcss`.
 - `tailwind.config.ts` exists in the repo but is intentionally empty — kept only for editor tooling.
+- Use canonical Tailwind class names (e.g. `min-h-11` not `min-h-[44px]`, `w-55` not `w-[220px]`) — the linter flags non-canonical forms.
 
 ---
 
@@ -223,24 +253,85 @@ Note: the DB column for `themeId` is `theme_id` (snake_case) and for `createdAt`
 ## What is built
 
 ### `/` — Home page (`app/page.tsx` + `app/loading.tsx`)
-Fully implemented. Server component with `export const dynamic = "force-dynamic"`.
+Server component with `export const dynamic = "force-dynamic"`.
 
-- **Welcome header**: Gold italic "Us, Intentionally" title + muted subtitle + accent stat pill showing `X of Y topics explored together` (a topic counts as complete only when **both** him and her have a rating for it)
-- **Theme grid**: 2-column (desktop) / 1-column (mobile) grid of 6 `ThemeCard` components. Each shows icon, name, description, a 1px progress bar (width = avgScore / 10 × 100%), topics explored count, and a `glass-button` link to `/conversations?theme=[themeId]`
-- **Recent Activity**: Last 5 ratings fetched via Supabase join (`ratings → topics(question)`). Shows score in a circular accent badge, topic question (2-line clamp), person display name from settings table, and relative time via `date-fns formatDistanceToNow`. Empty state shows a centred `✦` ornament
-- **Skeleton**: `app/loading.tsx` mirrors the page layout with `animate-pulse` + `glass-card` shaped skeletons
+- **Welcome header**: Gold italic title + muted subtitle + accent stat pill showing `X of Y topics explored together` (counts only topics where **both** him and her have a rating)
+- **Theme grid**: 2-column (desktop) / 1-column (mobile) grid of 6 `ThemeCard` components. Each shows icon, name, description, a 1px progress bar, topics explored count, and a `glass-button` link to `/conversations?theme=[themeId]`
+- **Recent Activity**: Last 5 ratings via Supabase join. Shows score badge, question (2-line clamp), person display name, relative time via `date-fns formatDistanceToNow`. Empty state: centred `✦` ornament
+- **Skeleton**: `app/loading.tsx` mirrors page layout with `animate-pulse` + `glass-card` shapes
 
 Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in JS — no N+1 queries.
 
 ---
 
-## What is NOT built yet
+### `/conversations` — Conversations page (`app/conversations/`)
 
-- `/conversations` page — the main feature (browse themes → pick topic → rate + note via slider)
-- `/progress` page — charts (Recharts) showing scores over time per theme
-- `/settings` page — edit display names for him/her
-- Authentication — there is none. The app is accessed directly; both people use the same device/browser or trust each other with the URL.
-- Any server-side session logic — all DB calls use the Supabase anon key from the browser
+`page.tsx` is a thin Suspense wrapper. All logic lives in `ConversationsClient.tsx` (`"use client"`).
+
+**Layout:**
+- Desktop: 220px left panel (`glass-nav`) listing all 6 themes + independently scrollable topic area on the right. The full page fills `md:h-dvh md:overflow-hidden`.
+- Mobile: sticky horizontal scrollable theme tab row (`scrollbar-none`) at the top, topics scroll below.
+- Active theme driven by `?theme=[themeId]` URL param; defaults to first theme (set via `router.replace` on load).
+
+**Topics:**
+- Grouped into Easy / Medium / Hard sections with coloured dividers (`#8aab7a` / `#c9a96e` / `#c47a6a`).
+- Each **topic card** contains: question in Cormorant Garamond italic, difficulty badge, and either a summary view (completed) or slider rows (not yet rated).
+- Sliders use native `<input type="range">` with the `rating-slider` CSS class and an inline `background` gradient for the fill. Track: accent green. Thumb: gold.
+- On load, sliders are pre-populated from the most-recent rating per person per topic (ratings fetched sorted `rated_at DESC`; first `.find()` per person = most recent).
+- Empty state when DB is not seeded: centred `✦` with a note to run `/api/seed`.
+
+**Completed topics & Revisit flow:**
+- A topic is **completed** when both a `him` and a `her` rating exist for it. `completed` is derived at load time — no extra DB column needed.
+- Completed cards show a small accent dot before the question and muted question text (`text-foreground/60`) to signal completion without locking the card.
+- When a completed topic is displayed the card shows a **summary view** instead of sliders:
+  - Score pair: him score in accent, her score in gold, separated by a vertical rule.
+  - Notes from the last save in muted italic with a small name label (if any).
+  - "Last discussed [d MMMM yyyy]" date using `date-fns format`.
+  - "Revisit this conversation" button (full-width, `min-h-12`).
+- Tapping "Revisit this conversation" transitions (`max-height` + `opacity`, 200ms) to the edit view with sliders pre-populated from the last saved scores. Save button reads "Update scores". A "Cancel" text link (`min-h-11`) reverts to the saved snapshot and returns to the summary view without saving.
+- **Revisit save** calls `.update().eq("id", ...)` on the existing rating rows (IDs stored in `TopicState`). Does NOT insert new rows — history is preserved.
+- **First-time save** uses `.insert().select("id,person")` so the returned IDs can be stored in `TopicState` for future revisit updates.
+- `TopicState` carries: `completed`, `himRatingId`, `herRatingId`, `revisiting`, plus a saved-scores snapshot (`savedHimScore`, `savedHerScore`, `savedHimNote`, `savedHerNote`) used to revert on Cancel.
+
+**Error handling:** `load()` is wrapped in `try/catch`; `setLoading(false)` is always reached.
+
+---
+
+### `/progress` — Progress analytics page (`app/progress/`)
+
+`page.tsx` is a server component (`export const dynamic = "force-dynamic"`). Recharts is loaded via `nextDynamic(() => import("./ProgressCharts"), { ssr: false })` — must stay client-only.
+
+**Sections:**
+1. **Summary stats** — 4 `glass-card` tiles: topics rated by both, him avg, her avg, most recent session date. Shows `—` when no data.
+2. **Score over time** (line chart in `ProgressCharts.tsx`) — daily averages per person. Him: `#8aab7a`. Her: `#c9a96e`. Empty state inside chart area when no ratings.
+3. **Theme breakdown** (horizontal bar chart) — average combined score per theme. All 6 themes always shown; zero-rated themes show bars at 0.
+4. **Topic detail table** — all rated topics, columns: Theme / Question / His Score / Her Score / Gap. Sorted by most recently updated. Rows where gap ≥ 3 get a subtle gold/amber background (`rgba(201,169,110,0.07)`).
+5. **Session timeline** — every save event most-recent-first, deduplicated by `topic_id + rated_at` (each save = 2 DB rows with identical timestamp). Shows date, theme, question, score pills.
+
+**Error handling:** `getProgressData()` is wrapped in `try/catch`; returns `EMPTY_DATA` on failure so the page never crashes.
+
+---
+
+### `/settings` — Settings page (`app/settings/page.tsx`)
+
+Full `"use client"` page. Loads settings on mount via `try/catch/finally`.
+
+**Section 1 — Your Names:**
+- Two `glass-input` text fields (side-by-side on `sm+`, stacked on mobile) for `name_him` and `name_her`.
+- Saves via two parallel `.update().eq("key", ...)` calls. Calls `router.refresh()` after save so server components pick up new names.
+- Shows "Names updated" `StatusDot` for 3 seconds on success.
+
+**Section 2 — Appearance:**
+- Placeholder `glass-card` labelled "Appearance — coming soon". No functionality yet; reserved for a colour palette switcher.
+
+---
+
+### API routes
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/seed` | POST | Seeds DB with 6 themes + 41 topics + 2 settings rows. Idempotent. |
+| `/api/health` | GET | Returns `{ status: "ok", timestamp }`. Used to verify deployment. |
 
 ---
 
@@ -252,4 +343,9 @@ Data fetched with `Promise.all` (5 parallel Supabase queries). Stats computed in
 - Server components are the default — no `"use client"` unless needed
 - Do not add authentication or multi-user logic — this is a private two-person app
 - Do not create new colour tokens outside of `app/globals.css @theme` — use what exists
-- Keep the glassmorphism restrained: every new surface should use `glass-card` or `glass-nav`, not raw background colours
+- Keep glassmorphism restrained: every new surface should use `glass-card` or `glass-nav`, not raw background colours
+- Every async data load must be wrapped in `try/catch`. `setLoading(false)` must always be reached (use `finally` or place it in both branches). The UI must never hang in a loading state due to a DB error.
+- Every route directory must have a `loading.tsx` skeleton that matches the glass aesthetic
+- Use Tailwind canonical class names — the linter flags non-canonical forms (e.g. use `min-h-11` not `min-h-[44px]`, `w-55` not `w-[220px]`, `bg-white/4` not `bg-white/[0.04]`)
+- Recharts must always be loaded via `next/dynamic` with `ssr: false` — it uses browser APIs that break SSR
+- Destructive/danger actions use warm rose `#c47a6a` inline styles, NOT the `--color-destructive` token (`#e05252`). The destructive token is for error messages only.
