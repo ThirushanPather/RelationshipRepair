@@ -6,11 +6,9 @@ import { supabase } from "@/lib/supabase"
 import type { TimelinePoint, ThemeBarPoint } from "./ProgressCharts"
 import { ThemeIcon } from "@/components/icons/ThemeIcons"
 import HealthScoreRing from "@/components/progress/HealthScoreRing"
-import {
-  Star, MessageCircle, Target, BookOpen, Trophy, Link2,
-  Shield, TrendingUp, Pencil, LayoutGrid, Lock,
-  Heart, Flag,
-} from "lucide-react"
+import MilestoneStrip from "@/components/progress/MilestoneStrip"
+import type { MilestoneProgressData } from "@/components/progress/MilestoneStrip"
+import { TrendingUp, Target, Heart, Flag } from "lucide-react"
 
 // ─── Dynamic import — Recharts must be client-only ────────────────────────────
 
@@ -107,6 +105,9 @@ const EMPTY_DATA = {
   insights: [] as InsightData[],
   totalTopicsCount: 0,
   completedTopicsCount: 0,
+  avgGap: 5,
+  topicsWithNoteCount: 0,
+  themeBreakdown: [] as MilestoneProgressData["themeBreakdown"],
 }
 
 async function getProgressData() {
@@ -252,6 +253,15 @@ async function getProgressData() {
       unlocked: themes.length > 0 && themes.every(t => completedThemeIds.has(t.id)),
     },
   ]
+
+  // ── Theme breakdown (for milestone progress popups) ─────────────────────────
+
+  const themeBreakdown = themes.map(theme => ({
+    id: theme.id,
+    name: theme.name,
+    completedCount: completedTopics.filter(t => t.theme_id === theme.id).length,
+    totalCount: topics.filter(t => t.theme_id === theme.id).length,
+  }))
 
   // ── Insights ────────────────────────────────────────────────────────────────
 
@@ -415,6 +425,9 @@ async function getProgressData() {
     insights,
     totalTopicsCount,
     completedTopicsCount: ratedTopicsCount,
+    avgGap,
+    topicsWithNoteCount: topicsWithNote.size,
+    themeBreakdown,
   }
   } catch (err) {
     console.error("Failed to load progress data:", err)
@@ -423,23 +436,6 @@ async function getProgressData() {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getMilestoneIcon(id: string) {
-  const p = { size: 20, strokeWidth: 1.5 }
-  switch (id) {
-    case "first-step":    return <Star {...p} />
-    case "getting-real":  return <MessageCircle {...p} />
-    case "halfway":       return <Target {...p} />
-    case "deep-dive":     return <BookOpen {...p} />
-    case "full-circle":   return <Trophy {...p} />
-    case "in-sync":       return <Link2 {...p} />
-    case "honest-ground": return <Shield {...p} />
-    case "growth-mindset":return <TrendingUp {...p} />
-    case "vulnerability": return <Pencil {...p} />
-    case "all-in":        return <LayoutGrid {...p} />
-    default:              return <Star {...p} />
-  }
-}
 
 function InsightIcon({ type }: { type: InsightData["type"] }) {
   const p = { size: 18, strokeWidth: 1.5 }
@@ -493,13 +489,13 @@ export default async function ProgressPage() {
     milestones,
     insights,
     completedTopicsCount,
+    totalTopicsCount,
+    avgGap,
+    topicsWithNoteCount,
+    themeBreakdown,
   } = await getProgressData()
 
   const hasAnyData = ratedTopicsCount > 0
-  const unlockedCount = milestones.filter(m => m.unlocked).length
-  const sortedMilestones = [...milestones].sort(
-    (a, b) => (b.unlocked ? 1 : 0) - (a.unlocked ? 1 : 0)
-  )
 
   return (
     <div className="max-w-4xl mx-auto px-5 py-10 md:py-14 space-y-10">
@@ -523,65 +519,16 @@ export default async function ProgressPage() {
 
       {/* ── Milestone strip ───────────────────────────────────────────────── */}
       <section>
-        <p className="text-[11px] font-medium tracking-widest uppercase text-muted-foreground mb-1">
-          Milestones
-        </p>
-        <p className="text-xs text-muted-foreground mb-4">
-          {unlockedCount} of {milestones.length} unlocked
-        </p>
-
-        <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
-          <div className="flex gap-3" style={{ width: "max-content" }}>
-            {sortedMilestones.map(m => {
-              const unlocked = m.unlocked
-              return (
-                <div
-                  key={m.id}
-                  className="relative flex flex-col items-center justify-center gap-2 rounded-xl p-3 border"
-                  style={{
-                    width: 96,
-                    height: 96,
-                    flexShrink: 0,
-                    background: unlocked
-                      ? "color-mix(in srgb, var(--color-accent) 6%, var(--color-surface))"
-                      : "color-mix(in srgb, var(--color-surface2) 50%, transparent)",
-                    borderColor: unlocked
-                      ? "color-mix(in srgb, var(--color-accent) 30%, transparent)"
-                      : "color-mix(in srgb, var(--color-border) 60%, transparent)",
-                  }}
-                >
-                  {/* Icon */}
-                  <span style={{ color: unlocked ? "var(--color-accent)" : "var(--color-muted-foreground)", opacity: unlocked ? 1 : 0.5 }}>
-                    {getMilestoneIcon(m.id)}
-                  </span>
-
-                  {/* Name */}
-                  <p
-                    className="text-center leading-tight"
-                    style={{
-                      fontSize: "9px",
-                      fontWeight: 600,
-                      color: unlocked ? "var(--color-foreground)" : "var(--color-muted-foreground)",
-                      opacity: unlocked ? 1 : 0.5,
-                    }}
-                  >
-                    {m.name}
-                  </p>
-
-                  {/* Lock overlay */}
-                  {!unlocked && (
-                    <span
-                      className="absolute top-1.5 right-1.5"
-                      style={{ color: "var(--color-muted-foreground)", opacity: 0.4 }}
-                    >
-                      <Lock size={10} strokeWidth={2} />
-                    </span>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <MilestoneStrip
+          milestones={milestones}
+          progressData={{
+            completedCount: ratedTopicsCount,
+            totalTopics: totalTopicsCount,
+            avgGap,
+            topicsWithNoteCount,
+            themeBreakdown,
+          }}
+        />
       </section>
 
       {/* ── Section 1: Summary stats ──────────────────────────────────────── */}
