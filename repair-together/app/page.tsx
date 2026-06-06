@@ -157,7 +157,9 @@ export default async function HomePage() {
 
 function ThemeCard({ theme }: { theme: ThemeStat }) {
   const hasRatings = theme.completedTopics > 0
-  const barWidth = hasRatings ? `${(theme.avgScore / 10) * 100}%` : "0%"
+  const barWidth = theme.totalTopics > 0
+    ? `${(theme.completedTopics / theme.totalTopics) * 100}%`
+    : "0%"
 
   return (
     <div
