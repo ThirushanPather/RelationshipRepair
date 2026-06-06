@@ -25,6 +25,7 @@ type TopicRow = {
   question: string
   difficulty: 1 | 2 | 3
   sort_order: number
+  added_by?: string | null
 }
 
 type TopicState = {
@@ -198,7 +199,7 @@ function TopicCard({
       className="glass-card rounded-2xl p-5 md:p-6 relative"
     >
       {/* Question + difficulty badge + three-dot */}
-      <div className="flex items-start justify-between gap-3 mb-6">
+      <div className={`flex items-start justify-between gap-3 ${topic.added_by ? "mb-3" : "mb-6"}`}>
         <div className="flex items-start gap-2 flex-1 min-w-0">
           {state.completed && (
             <span
@@ -250,6 +251,22 @@ function TopicCard({
           </div>
         </div>
       </div>
+
+      {/* Attribution badge — only for user-added topics */}
+      {topic.added_by && (
+        <div className="mb-4">
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full inline-flex"
+            style={{
+              color: "var(--color-muted-foreground)",
+              border: "1px solid var(--color-border)",
+              background: "var(--color-surface2)",
+            }}
+          >
+            Added by {topic.added_by === "him" ? nameHim : nameHer}
+          </span>
+        </div>
+      )}
 
       {/* ── Summary view (completed & not revisiting) ───────────────────────── */}
       <div
@@ -445,7 +462,7 @@ export function ConversationsClient() {
       try {
         const [themesRes, topicsRes, ratingsRes, settingsRes] = await Promise.all([
           supabase.from("themes").select("id,name,icon,description,sort_order").order("sort_order"),
-          supabase.from("topics").select("id,theme_id,question,difficulty,sort_order").order("sort_order"),
+          supabase.from("topics").select("id,theme_id,question,difficulty,sort_order,added_by").order("sort_order"),
           supabase
             .from("ratings")
             .select("id,topic_id,person,score,note,rated_at")
@@ -869,6 +886,8 @@ export function ConversationsClient() {
           mode="add"
           themeId={activeThemeId}
           themes={themes}
+          nameHim={nameHim}
+          nameHer={nameHer}
           onSave={handleTopicAdded}
           onClose={() => setAddSheetOpen(false)}
         />
@@ -879,6 +898,8 @@ export function ConversationsClient() {
           mode="edit"
           topic={editTopic}
           themes={themes}
+          nameHim={nameHim}
+          nameHer={nameHer}
           onSave={handleTopicEdited}
           onClose={() => setEditTopic(null)}
         />

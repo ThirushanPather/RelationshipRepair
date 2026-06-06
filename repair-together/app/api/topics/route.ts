@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { theme_id, question, difficulty } = body
+    const { theme_id, question, difficulty, added_by } = body
 
     if (!theme_id || typeof theme_id !== "string") {
       return NextResponse.json({ error: "theme_id is required" }, { status: 400 })
@@ -25,11 +25,12 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     const sortOrder = (maxRow?.sort_order ?? 0) + 1
+    const addedBy = added_by === "him" || added_by === "her" ? added_by : null
 
     const { data, error } = await supabase
       .from("topics")
-      .insert({ theme_id, question: question.trim(), difficulty, sort_order: sortOrder })
-      .select("id,theme_id,question,difficulty,sort_order")
+      .insert({ theme_id, question: question.trim(), difficulty, sort_order: sortOrder, added_by: addedBy })
+      .select("id,theme_id,question,difficulty,sort_order,added_by")
       .single()
 
     if (error) {

@@ -10,6 +10,7 @@ export interface Topic {
   themeId: string
   question: string
   difficulty: 1 | 2 | 3
+  added_by?: "him" | "her" | null
 }
 
 export interface Rating {

@@ -8,6 +8,7 @@ type TopicRow = {
   question: string
   difficulty: 1 | 2 | 3
   sort_order: number
+  added_by?: string | null
 }
 
 type ThemeRow = {
@@ -23,6 +24,8 @@ type Props = {
   topic?: TopicRow
   themeId?: string
   themes: ThemeRow[]
+  nameHim: string
+  nameHer: string
   onSave: (topic: TopicRow) => void
   onClose: () => void
 }
@@ -33,13 +36,14 @@ const DIFFICULTY_META = {
   3: { label: "Hard",   color: "#c47a6a" },
 } as const
 
-export function TopicFormSheet({ mode, topic, themeId, themes, onSave, onClose }: Props) {
+export function TopicFormSheet({ mode, topic, themeId, themes, nameHim, nameHer, onSave, onClose }: Props) {
   const [visible, setVisible] = useState(false)
   const [question, setQuestion] = useState(topic?.question ?? "")
   const [difficulty, setDifficulty] = useState<1 | 2 | 3>(topic?.difficulty ?? 1)
   const [selectedThemeId, setSelectedThemeId] = useState(
     themeId ?? topic?.theme_id ?? themes[0]?.id ?? ""
   )
+  const [addedBy, setAddedBy] = useState<"him" | "her" | null>(null)
   const [fieldError, setFieldError] = useState("")
   const [saving, setSaving] = useState(false)
 
@@ -69,7 +73,7 @@ export function TopicFormSheet({ mode, topic, themeId, themes, onSave, onClose }
       const method = mode === "edit" ? "PATCH" : "POST"
       const body = mode === "edit"
         ? { question: question.trim(), difficulty }
-        : { theme_id: selectedThemeId, question: question.trim(), difficulty }
+        : { theme_id: selectedThemeId, question: question.trim(), difficulty, added_by: addedBy }
 
       const res = await fetch(url, {
         method,
@@ -204,6 +208,41 @@ export function TopicFormSheet({ mode, topic, themeId, themes, onSave, onClose }
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* Added by — add mode only */}
+          {mode === "add" && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">
+                Added by
+              </p>
+              <div className="flex gap-2">
+                {(["him", "her"] as const).map(person => {
+                  const name = person === "him" ? nameHim : nameHer
+                  const active = addedBy === person
+                  return (
+                    <button
+                      key={person}
+                      onClick={() => setAddedBy(active ? null : person)}
+                      disabled={saving}
+                      className="flex-1 min-h-11 rounded-xl text-sm border
+                                 transition-colors duration-150 disabled:opacity-50"
+                      style={{
+                        color: active ? "var(--color-accent)" : "var(--color-muted-foreground)",
+                        borderColor: active
+                          ? "color-mix(in srgb, var(--color-accent) 40%, transparent)"
+                          : "rgba(255,255,255,0.08)",
+                        background: active
+                          ? "color-mix(in srgb, var(--color-accent) 12%, transparent)"
+                          : "rgba(255,255,255,0.04)",
+                      }}
+                    >
+                      {name}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 
